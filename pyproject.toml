@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ToFiSca"
+version = "0.1.dev0"
+authors = [
+    { name = "Thomas Holland", email = "thomas@innot.de" },
+]
+description = "Film Scanning Application"
+readme = "README.rst"
+requires-python = ">=3.11"
+
+dependencies = [
+    "ArgParseDecorator~=1.4.0",
+    "fastapi~=0.115.0",
+    "uvicorn~=0.34.0",
+    "pydantic~=2.10",
+    "SQLAlchemy~=2.0",
+    "asyncssh~=2.9.0",
+    "numpy~=2.2.1",
+    "opencv-contrib-python-headless~=4.10.0.84",
+    "pillow~=11.1.0",
+    "platformdirs~=4.3.6",
+    "lgpio~=0.2.2.0",
+    "picamera2~=0.3.25",
+    "piexif~=1.1.3",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",
+    "Framework :: Hatch",
+    "Framework :: Pydantic :: 2",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Natural Language :: English",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Graphics :: Capture",
+    "Topic :: Multimedia :: Graphics :: Capture :: Scanners",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Multimedia :: Video :: Capture",
+    "Topic :: Multimedia :: Video :: Conversion",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
+
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/innot/tofisca"
+Issues = "https://github.com/innot/tofisca/issues"
+
+[project.optional-dependencies]
+test = [
+    "httpx",
+    "pycairo~=1.27.0",
+]
