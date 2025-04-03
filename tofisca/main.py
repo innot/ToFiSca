@@ -1,82 +1,122 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from pathlib import Path
 
 import platformdirs
-from pydantic import Field
 
-from configuration import ConfigItem, ConfigDatabase
-from hardware_manager import HardwareManager
-from web_ui import run_webui_server
+from .configuration import ConfigDatabase
+from .hardware_manager import HardwareManager
+from .project_manager import ProjectManager
+from .utils import Event_ts
+from .web_ui.server import run_webui_server
 
-default_data_path = platformdirs.user_data_path("tofisca")
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
-class DataPaths(ConfigItem):
+class ToFiSca:
     """
-    The file system paths to store the images after
+    The main application.
+
+    Besides the :meth:`main` method to start the application this methods allows access to the
+    various managers.
+
+    This class should be instatiated only once.
+
+    Use :meth:`app` to access the instance of the application.
     """
-    reference_data_path: Path = Field(default=default_data_path / "{project_name}")
-    raw_image_storage_path: Path = Field(default=default_data_path / "{project_name}" / "scanned")
-    processed_image_storage_path: Path = Field(default=default_data_path / "{project_name}" / "processed")
 
+    _instance: ToFiSca | None = None
 
-application_datapaths: DataPaths | None = None
+    @classmethod
+    def app(cls) -> ToFiSca:
+        return cls._instance
 
+    @classmethod
+    def _delete_singleton(cls):
+        """
+        Reset the singleton instance so that tofisca can be instantiatied again with new arguments.
+        Only used for unit testing
+        """
+        cls._instance = None
 
+    def __new__(cls, *args, **kwargs):
+        """
+        Ensure that the class is only instantiated once.
+        """
+        if cls._instance:
+            raise RuntimeError("ToFiSca can be instantiated only once. Use ToFiSca.app() instead.")
 
-async def main(database_file: Path | str = None):
-    logging.basicConfig(level=logging.DEBUG)
-    logging.info("Starting ToFiSca")
+        cls._instance = super().__new__(cls)
+        return cls._instance
 
-    # if not provided by the caller use the default location for the database
-    if not database_file:
-        database_file: Path = platformdirs.user_config_path(appauthor="tofisca") / "config_database.sqlite"
+    def __init__(self, data_path: Path = None, database_file: Path | str = None):
 
-    #
-    # Initialize the global objects
-    #
-    global application_datapaths
+        # if not provided by the caller, use the default platform-specific location for configuration data
+        if not database_file:
+            database_file: Path = platformdirs.user_config_path(appauthor="tofisca") / "config_database.sqlite"
 
+        # Start the configuration database. This is a Singleton, so every future call will get this database
+        self.config_db = ConfigDatabase(databasefile=database_file)
 
-    # start the configuration database. This is a Singleton, so every future call will get this database
-    ConfigDatabase(databasefile=database_file)
+        # if not provided by the caller, use the default platform-specific location for application data
+        if not data_path:
+            data_path = platformdirs.user_data_path(appauthor="tofisca")
 
-    # noinspection PyArgumentList
-    application_datapaths = DataPaths(load_from_database=True)
+        self._data_path = data_path
 
-    # start the camera manager to allow acces to the camera
-    # CameraManager()
+        # Start the projectmanager. This must be done after the config database has been started
+        self.project_manager = ProjectManager()
 
-    # start the hardware manager to set up the gpios
-    HardwareManager()
+        # start the camera manager to allow acces to the camera
+        # CameraManager()
 
-    #
-    # run the different tasks
-    #
+        # start the hardware manager to set up the gpios
+        self.hardware_manager = HardwareManager()
 
-    # noinspection PyListCreation
-    tasks: list[asyncio.Task] = []
+        self.shutdown_event: Event_ts | None = None
+        """
+        When set causes all parts of the application to shut down, saving their state as required.
+        The application exits after that.
+        """
 
-    # If scanning is started, the sequencer takes the images and handles post processing
-    # todo: run scheduler
+    @property
+    def data_path(self) -> Path:
+        return self._data_path
 
-    # Start WebUI to control the Application from the web
-    tasks.append(asyncio.create_task(run_webui_server()))
+    async def main(self):
 
-    # Start SshUI to control the Application via ssh
-    #    ssh_task = asyncio.create_task(SSHServer().run())
+        logger.info("Starting ToFiSca")
 
-    # wait for any task to finish (this will close the application)
-    await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        #
+        # run the different tasks
+        #
 
-    # stop all other tasks gracefully, allowing them to save state if required
-    for task in tasks:
-        task.cancel()
-        await task
+        # noinspection PyListCreation
+        tasks: list[asyncio.Task] = []
 
-    logging.info("ToFiSca ended")
+        # If scanning is started, the sequencer takes the images and handles post processing
+        # todo: run scheduler
+
+        # Start WebUI to control the Application from the web
+        tasks.append(asyncio.create_task(run_webui_server()))
+
+        # Start SshUI to control the Application via ssh
+        #    ssh_task = asyncio.create_task(SSHServer().run())
+
+        # wait for any task to finish (this will close the application)
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+
+        # stop all other tasks gracefully, allowing them to save state if required
+        for task in tasks:
+            task.cancel()
+            await task
+
+        logger.info("ToFiSca ended")
 
 
 if __name__ == "__main__":
-    asyncio.run(main("memory"))
+    _instance = ToFiSca()
+    asyncio.run(_instance.main())
