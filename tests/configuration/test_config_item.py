@@ -27,7 +27,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
         self.db = ConfigDatabase("memory")
 
     async def asyncTearDown(self):
-        ConfigDatabase.delete_singleton()
+        ConfigDatabase._delete_singleton()
         self.db = None
 
     async def test_get_qualified_name(self):

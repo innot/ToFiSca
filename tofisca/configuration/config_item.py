@@ -25,7 +25,7 @@ from typing import Self, Any, NewType
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from .database import ConfigDatabase, _ConfigDatabase, Scope
+from .database import ConfigDatabase, Scope
 
 
 class DataNotFoundError(Exception):
@@ -99,8 +99,6 @@ class ConfigItem(BaseModel):
     def __init__(self, /, **kwargs):
         super().__init__(**kwargs)
 
-        self._db_handle: _ConfigDatabase = ConfigDatabase()
-
     async def store(self, scope: Scope | int = Scope.GLOBAL) -> None:
         """
         Store the data of this model to the configuration database.
@@ -119,7 +117,8 @@ class ConfigItem(BaseModel):
         :param scope: Project id number. Default is Scope.Global.
         """
         json = self.model_dump_json()
-        await self._db_handle.store_setting(self.get_qualified_name(), json, scope)
+        db = ConfigDatabase.db()
+        await db.store_setting(self.get_qualified_name(), json, scope)
 
     async def retrieve(self, scope: Scope | int = Scope.GLOBAL) -> Self:
         """
@@ -132,7 +131,8 @@ class ConfigItem(BaseModel):
         If there is nothing in the Global scope, all fields are reset to their default value.
 
         """
-        json = await self._db_handle.retrieve_setting(self.get_qualified_name(), scope)
+        db = ConfigDatabase.db()
+        json = await db.retrieve_setting(self.get_qualified_name(), scope)
         if not json:
             self.clear()
             return self
@@ -144,6 +144,7 @@ class ConfigItem(BaseModel):
         """
         Copy all managed fields from the given ConfigItem into this item.
         """
+        # todo: is this method needed or would pydantic.model_copy() work
         for field, _ in self.model_dump().items():
             value = getattr(item, field)
             setattr(self, field, value)
@@ -207,7 +208,8 @@ class ProjectItem(ConfigItem):
 
     @override
     async def store(self, *args):
-        if not self._db_handle.is_valid_project_id(self.pid):
+        db = ConfigDatabase.db()
+        if not db.is_valid_project_id(self.pid):
             return ValueError(f"{self._pid} is not a valid project id.")
         await super(ProjectItem, self).store(scope=self.pid)
 

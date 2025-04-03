@@ -22,13 +22,17 @@ import unittest
 from concurrent.futures.thread import ThreadPoolExecutor
 from pathlib import Path
 
-from tofisca.configuration.database import _ConfigDatabase, ConfigDatabase, Scope, Project, Setting
+from tofisca.configuration.database import ConfigDatabase, Scope, Project, Setting
 
 
 class MyTestCase(unittest.IsolatedAsyncioTestCase):
 
+    async def asyncTearDown(self):
+        # ensure that the Database Singleton is deleted
+        ConfigDatabase._delete_singleton()
+
     async def test_database(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
         self.assertIsNotNone(db)
         self.assertIsNotNone(db.db_engine)
 
@@ -40,7 +44,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
         # test file database
         with tempfile.TemporaryDirectory() as tmpdir:
             db_file = Path(tmpdir) / "settings.sqlite"
-            db = _ConfigDatabase(db_file)
+            db = ConfigDatabase(db_file)
             self.assertIsNotNone(db)
             self.assertTrue(db_file.exists())
 
@@ -50,21 +54,24 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
             db.db_engine.dispose()
 
     async def test_singleton(self):
+
+        self.assertIsNone(ConfigDatabase.db())
+
         db = ConfigDatabase("memory")
         self.assertIsNotNone(db)
 
-        db2 = ConfigDatabase()
-        self.assertIs(db2, db)
+        self.assertIs(db, ConfigDatabase.db())
+        self.assertIs(db, ConfigDatabase("memory"))
 
         with self.assertRaises(RuntimeError):
             ConfigDatabase(databasefile="/path/to/nowhere")
 
     async def test_errors(self):
         with self.assertRaises(FileNotFoundError):
-            _ConfigDatabase(Path("path/to/nowhere"))
+            ConfigDatabase(Path("/path/to/nowhere"))
 
     async def test_get_scope(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         scope, _ = await db.get_scope(Scope.DEFAULT)
         self.assertEqual(Scope.DEFAULT, scope)
@@ -88,7 +95,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
             await db.get_scope([])
 
     async def test_project(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         pid = await db.create_project('test')
         self.assertIsNotNone(pid)
@@ -127,7 +134,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
                 await db.get_project(arg)
 
     async def test_store_and_retrieve(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         # Test with Scope.DEFAULT
         setting = await db.store_setting("foo", "default", Scope.DEFAULT)
@@ -172,7 +179,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
             await db.store_setting("foo", "humbug", Scope.PROJECT)
 
     async def test_threading(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         async def thread_runner():
             nonlocal db
@@ -213,7 +220,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(f"value={idx}", await db.retrieve_setting(f"key/{idx}"))
 
     async def test_str_repr(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         pid = await db.create_project("teststr")
         project = await db.get_project(pid)
@@ -230,7 +237,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertTrue("project" in repr(setting))
 
     async def test_list_projects(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         expected = {}
         for i in range(1, 11):
@@ -243,7 +250,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertDictEqual(expected, result)
 
     async def test_change_project_name(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         pid = await db.create_project("testchange")
         await db.change_project_name(pid, "new name")
@@ -252,7 +259,7 @@ class MyTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("new name", project.name)
 
     async def test_is_valid_project_id(self):
-        db = _ConfigDatabase("memory")
+        db = ConfigDatabase("memory")
 
         pid = await db.create_project("foobar")
         self.assertTrue(await db.is_valid_project_id(pid))

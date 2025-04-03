@@ -35,9 +35,9 @@ class ConfigDatabaseException(Exception):
 
 
 class Scope(enum.Enum):
-    DEFAULT = 0
-    GLOBAL = 1
-    PROJECT = 2
+    DEFAULT = "default"
+    GLOBAL = "global"
+    PROJECT = "project"
 
     def __str__(self) -> str:
         return str(self.value)
@@ -76,7 +76,39 @@ class Setting(Base):
         return f"Setting({self.key!r}: {self.value!r}, Scope {scope})"
 
 
-class _ConfigDatabase:
+class ConfigDatabase:
+    _db_instance: ConfigDatabase | None = None
+    """Singleton ConfigDatabase instance"""
+
+    @classmethod
+    def db(cls):
+        """
+        Get the singleton ConfigDatabase instance.
+        May be `None` if the database has not been instantiated.
+        """
+        return cls._db_instance
+
+    @classmethod
+    def _delete_singleton(cls):
+        """
+        Delete the Singleton ConfigDatabase instance so a new instance can be created.
+        This is supposed to be used for unit testing.
+        """
+        cls._db_instance = None
+
+    def __new__(cls, databasefile: Path | str = None, debug=False) -> ConfigDatabase:
+        # Check if the class has already been instantiated.
+        # If yes return the class Singleton
+        if cls._db_instance:
+            # raise an exception if a different databasefile was given
+            current_db_file = cls._db_instance._db_file
+            if databasefile != current_db_file:
+                raise RuntimeError(
+                    f"Re-instantiating with different databas path. new:{databasefile}, existing: {current_db_file}")
+            return cls._db_instance
+
+        cls._db_instance = super().__new__(cls)
+        return cls._db_instance
 
     def __init__(self, databasefile: Path | str, debug=False):
 
@@ -96,6 +128,8 @@ class _ConfigDatabase:
                 raise FileNotFoundError(f"Cannot create database. Directory {databasefile.parent} does not exist")
 
             self.db_engine = create_engine(f"sqlite+pysqlite:///{databasefile}", echo=debug)
+
+        self._db_file = databasefile
 
         Base.metadata.create_all(self.db_engine)
 
@@ -288,30 +322,3 @@ class _ConfigDatabase:
     async def is_valid_project_id(self, pid: int) -> bool:
         session = self.Session()
         return session.query(Project.id).filter_by(id=pid).first() is not None
-
-
-class ConfigDatabase(_ConfigDatabase):
-    """Config Database Singleton"""
-
-    _db_instance: _ConfigDatabase | None = None
-    """Singleton ConfigDatabase instance"""
-
-    def __new__(cls, databasefile: Path | str = None, debug=False) -> _ConfigDatabase:
-        # Check if the class has already been instantiated.
-        # If yes return the class Singleton
-        if cls._db_instance:
-            # raise an exception if any arguments were given
-            if databasefile:
-                raise RuntimeError("Re-instantiating the ConfigDatabase with arguments is not possible.")
-            return cls._db_instance
-
-        cls._db_instance = _ConfigDatabase(databasefile, debug)
-        return cls._db_instance
-
-    @classmethod
-    def delete_singleton(cls):
-        """
-        Delete the Singleton ConfigDatabase instance so a new instance can be created.
-        This is supposed to be used for unit testing.
-        """
-        cls._db_instance = None
