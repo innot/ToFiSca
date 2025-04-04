@@ -18,7 +18,7 @@
 
 from pydantic import BaseModel, Field, ValidationError
 
-from tofisca.configuration import ConfigItem
+from configuration.config_item import ConfigItem
 
 
 class Point(BaseModel):

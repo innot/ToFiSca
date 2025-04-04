@@ -22,7 +22,9 @@ class Event_ts(asyncio.Event):
     # TODO: clear() method
     def set(self):
         # FIXME: The _loop attribute is not documented as public api!
-        self._loop.call_soon_threadsafe(super().set)
+        loop = asyncio.get_event_loop()
+        loop.call_soon_threadsafe(super().set)
 
     def clear(self):
-        self._loop.call_soon_threadsafe(super().clear)
+        loop = asyncio.get_event_loop()
+        loop.call_soon_threadsafe(super().clear)

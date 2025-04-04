@@ -13,23 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with ToFiSca.  If not, see <http://www.gnu.org/licenses/>.
 
-from enum import Enum
-
 import cv2 as cv
 import numpy as np
 from pydantic import Field
 
-from tofisca.configuration import ConfigItem
-from tofisca.film_specs import FilmSpecs, FSKeys, FilmSpecKey
-from tofisca.models import ScanArea, PerforationLocation, Rect, Point, OffsetPoint, Size, RectEdges
-
-
-class _InternalParams(Enum):
-    ROI_DELTA = "roi.internal.delta"
-    ROI_SIZE = "roi.internalsize"
-    ROI_BACKGROUNDLEVEL = "roi.internal.backgroundlevel"
-    ROI_FILMSTOCKLEVEL = "roi.internal.filmstocklevel"
-    ROI_PERFSIZE = "roi.internal.perfsize"
+from configuration.database import ConfigDatabase, Scope
+from configuration.config_item import ConfigItem
+from film_specs import FilmSpecs, FSKeys, FilmSpecKey
+from models import ScanArea, PerforationLocation, Rect, Point, OffsetPoint, Size, RectEdges
 
 
 class NoImageSetError(RuntimeError):
@@ -150,10 +141,19 @@ class ScanAreaManager:
     After it has been set up, calls to :meth:`update` with a new image will return
     the location of the scanarea for the image.
 
+    :param pid: The id of the project this scanarea is associated with.
+                Used for saving and loading the state from the config database.
+                If `None` (the default), the scanarea is not associated with any project.
+                Instead it will save and load from the GLOBAL context (used for unit tests)
     :param filmspecs: The film dimension specifications. Defaults to 'Filmspecs.Super8'
     """
 
-    def __init__(self, filmspecs: FilmSpecKey = None):
+    def __init__(self, pid: int = None, filmspecs: FilmSpecKey = None):
+
+        if pid:
+            self._pid: int | Scope = pid
+        else:
+            self._pid: int | Scope = Scope.GLOBAL
 
         self._specs_key: FilmSpecKey | None = None
         self._specs: dict[FSKeys, any] | None = None
@@ -176,7 +176,7 @@ class ScanAreaManager:
 
         self._threshold_levels: ImageThresholdLevels | None = None
 
-    async def load_current_state(self, pid: int) -> None:
+    async def load_current_state(self, database: ConfigDatabase, pid: int) -> None:
         """
         Load the last saved state from the config database for the given Project id.
         If there is no previous state in the database, the reference PerforationLocation and the
@@ -184,20 +184,20 @@ class ScanAreaManager:
         The pid is stored and will be used for storing the state with the :meth:`save_current_state` method.
         :param pid: The Project id under which the state is to be stored.
         """
-        self._reference_perfloc = await PerforationLocation().retrieve(pid)
-        self._scanarea = await ScanArea().retrieve(pid)
-        self._threshold_levels = await ImageThresholdLevels().retrieve(pid)
+        self._reference_perfloc = await PerforationLocation().retrieve(database, pid)
+        self._scanarea = await ScanArea().retrieve(database, pid)
+        self._threshold_levels = await ImageThresholdLevels().retrieve(database, pid)
 
-    async def save_current_state(self, pid: int) -> None:
+    async def save_current_state(self, database: ConfigDatabase, pid: int) -> None:
         """
         Save the current state to the config database for the given Project id.
         This should be called after each successful :meth:`update` call to ensure
         a consistent state in case the scanning is interrupted and started again with a new
         ScanAreaManager instance.
         """
-        await self._reference_perfloc.store(pid)
-        await self._scanarea.store(pid)
-        await self._threshold_levels.store(pid)
+        await self._reference_perfloc.store(database, pid)
+        await self._scanarea.store(database, pid)
+        await self._threshold_levels.store(database, pid)
 
     @property
     def film_spec(self) -> FilmSpecKey:

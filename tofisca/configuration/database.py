@@ -39,10 +39,6 @@ class Scope(enum.Enum):
     GLOBAL = "global"
     PROJECT = "project"
 
-    def __str__(self) -> str:
-        return str(self.value)
-
-
 class Base(DeclarativeBase):
     pass
 
@@ -77,38 +73,6 @@ class Setting(Base):
 
 
 class ConfigDatabase:
-    _db_instance: ConfigDatabase | None = None
-    """Singleton ConfigDatabase instance"""
-
-    @classmethod
-    def db(cls):
-        """
-        Get the singleton ConfigDatabase instance.
-        May be `None` if the database has not been instantiated.
-        """
-        return cls._db_instance
-
-    @classmethod
-    def _delete_singleton(cls):
-        """
-        Delete the Singleton ConfigDatabase instance so a new instance can be created.
-        This is supposed to be used for unit testing.
-        """
-        cls._db_instance = None
-
-    def __new__(cls, databasefile: Path | str = None, debug=False) -> ConfigDatabase:
-        # Check if the class has already been instantiated.
-        # If yes return the class Singleton
-        if cls._db_instance:
-            # raise an exception if a different databasefile was given
-            current_db_file = cls._db_instance._db_file
-            if databasefile != current_db_file:
-                raise RuntimeError(
-                    f"Re-instantiating with different databas path. new:{databasefile}, existing: {current_db_file}")
-            return cls._db_instance
-
-        cls._db_instance = super().__new__(cls)
-        return cls._db_instance
 
     def __init__(self, databasefile: Path | str, debug=False):
 
@@ -304,9 +268,9 @@ class ConfigDatabase:
 
         project_id: int | None = None
 
-        if scope == Scope.DEFAULT:
+        if scope is Scope.DEFAULT:
             real_scope = Scope.DEFAULT
-        elif scope == Scope.GLOBAL:
+        elif scope is Scope.GLOBAL:
             real_scope = Scope.GLOBAL
         else:
             # the scope is a project, either by name or by id

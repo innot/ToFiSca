@@ -15,37 +15,31 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
-
+import asyncio
 import logging
 from enum import Enum
-from typing import Union
 
 import uvicorn
-from fastapi import FastAPI, status, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from film_specs import FilmFormat, FilmSpecs
-from project_manager import ProjectManager
+from app import App
+from .global_api import router as global_api_router
+from .project_api import router as project_api_router
 from .senditem_websocket import router as websocket_router
 
-#@asynccontextmanager
-#async def lifespan(app: FastAPI):
+logger = logging.getLogger(__name__)
+
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
 #    yield
 
 
 webui_app = FastAPI()
 
+webui_app.include_router(global_api_router)
+webui_app.include_router(project_api_router)
 webui_app.include_router(websocket_router)
-
-
-class Tags(Enum):
-    GLOBAL = "global"
-    GLOBAL_SETTING = "Global Setting"
-    PROJECT_SETTING = "Project Setting"
-    CAMERA = "camera"
-    WEBSOCKET = "websocket"
-
-
 
 
 class ProjectSetupState(BaseModel):
@@ -55,7 +49,6 @@ class ProjectSetupState(BaseModel):
     whiteBalanceSet: bool = False
     pathsSet: bool = False
     nameSet: bool = False
-
 
 
 class ProjectStateType(Enum):
@@ -73,154 +66,23 @@ class ProjectState(BaseModel):
     state: ProjectStateType = Field(ProjectStateType.NOT_STARTED)
 
 
-class Error(BaseModel):
-    msg: str = ""
+async def run_webui_server(app: App):
 
-
-@webui_app.get("/api/allprojects",
-               tags=[Tags.GLOBAL])
-async def get_all_projects() -> dict[str, int]:
-    all_projects = ProjectManager.list_projects()
-    return AllProjects().all
-
-@webui_app.get("/api/filmformats/all",
-               tags=[Tags.GLOBAL])
-async def get_all_filmformats() -> list[FilmFormat]:
-    return FilmSpecs.get_api_film_formats()
-
-@webui_app.get("/api/project/setup_state",
-               tags=[Tags.PROJECT_SETTING])
-async def get_project_setup_state() -> ProjectSetupState:
-    # todo: actual implementation
-    return ProjectSetupState()
-
-
-@webui_app.get("/api/project/id",
-               tags=[Tags.PROJECT_SETTING])
-async def get_project_id() -> ProjectId:
-    # todo: actual implementation
-    return ProjectId(id=4)
-
-
-@webui_app.get("/api/project/name",
-               tags=[Tags.PROJECT_SETTING])
-async def get_project_name() -> ProjectName:
-    # todo: actual implementation
-    return ProjectName(name="")
-
-
-@webui_app.put("/api/project/name",
-               responses={status.HTTP_409_CONFLICT: {"model": Error},
-                          status.HTTP_400_BAD_REQUEST: {"model": Error}},
-               tags=[Tags.PROJECT_SETTING])
-async def put_project_name(name: ProjectName) -> ProjectName:
-    return name
-
-
-@webui_app.get("/api/project/paths",
-               tags=[Tags.PROJECT_SETTING])
-async def get_project_paths() -> ProjectPaths:
-    return ProjectPaths()
-
-
-@webui_app.put("/api/project/paths",
-               responses={status.HTTP_404_NOT_FOUND: {"model": Error}},
-               tags=[Tags.PROJECT_SETTING])
-async def update_project_paths(project_paths: ProjectPaths) -> ProjectPaths:
-    return project_paths
-
-
-@webui_app.get("/api/project/filmdata",
-               tags=[Tags.PROJECT_SETTING])
-async def get_project_filmdata() -> FilmData:
-    return FilmData()
-
-
-@webui_app.put("/api/project/filmdata",
-               responses={status.HTTP_404_NOT_FOUND: {"model": Error}},
-               tags=[Tags.PROJECT_SETTING])
-async def put_project_filmdata(project_metadata: FilmData) -> FilmData:
-    return project_metadata
-
-
-@webui_app.get("/api/project/state",
-               tags=[Tags.PROJECT_SETTING])
-async def get_project_state() -> ProjectState:
-    return ProjectState(current_frame=0, last_scanned_frame=0, last_processed_frame=0,
-                        state=ProjectStateType.NOT_STARTED)
-
-
-@webui_app.get("/api/project/perf/location",
-               responses={status.HTTP_404_NOT_FOUND: {"model": Error}},
-               tags=[Tags.PROJECT_SETTING])
-async def get_perf_location() -> PerforationLocation:
-    #        return JSONResponse(status_code=404, content={Error("Perforation location not set")})
-
-    # todo: actual implementation
-    return PerforationLocation(top_edge=0.4, bottom_edge=0.6, inner_edge=0.3, outer_edge=0.15,
-                               reference=Point(x=0.3, y=0.5))
-
-
-@webui_app.put("/api/project/perf/location",
-               tags=[Tags.PROJECT_SETTING],
-               )
-async def put_perf_location(perf_location: PerforationLocation) -> PerforationLocation:
-    # todo: actual implementation
-    print(f"/api/perf/location POST: {perf_location}")
-    return perf_location
-
-
-@webui_app.post("/api/project/perf/detect",
-                responses={status.HTTP_404_NOT_FOUND: {"model": Error}},
-                tags=[Tags.PROJECT_SETTING]
-                )
-async def post_perfdetect(startpoint: Point) -> PerforationLocation:
-    # todo: actual implementation
-    print(f"/api/perf/detect GET: {startpoint}")
-    if not startpoint:
-        msg = f"Could not detect perforation hole{' at the given point' if startpoint else ''}"
-        raise HTTPException(404, msg)
-
-    return PerforationLocation(top_edge=0.4, bottom_edge=0.6, inner_edge=0.3, outer_edge=0.15,
-                               reference=Point(x=0.3, y=0.5))
-
-
-@webui_app.get("/api/project/scanarea",
-               responses={status.HTTP_404_NOT_FOUND: {"model": Error}},
-               tags=[Tags.PROJECT_SETTING])
-async def get_scanarea() -> ScanArea:
-    """
-    Get the camera Scanarea, the area that defines the film frame content to be used.
-    All values are normalized (ref_delta: between -1 and 1, size: between 0 and 1) and
-    independent of the select camera image resolution.
-    """
-    # todo: actual implementation
-    scanarea = ScanArea(ref_delta=OffsetPoint(dx=0.3, dy=0.5), size=Size(width=0.7, height=0.5))
-    return scanarea
-
-
-@webui_app.put("/api/project/scanarea",
-               tags=[Tags.PROJECT_SETTING],
-               )
-async def put_scanarea(scanarea: ScanArea) -> ScanArea:
-    """
-    Set the ScanArea, the area that defines the film frame content to be used.
-    All values are normalized (between 0 and 1) to be independent of the select camera image resolution.
-        - ref_delta: The delta between the Perforation reference point and the top left point of the scan area.
-        - size: The size of the scan area.
-    """
-    print(f"/api/scanarea POST: {scanarea}")
-    return scanarea
-
-
-async def run_webui_server():
     port = 80  # todo: make port configurable
 
     config = uvicorn.Config(webui_app, port=port, log_level="info")
     server = uvicorn.Server(config)
-    logging.info(f"WebUI server started on port {port}")
-    await server.serve()
-    logging.info("WebUI server stopped")
+    logger.info(f"WebUI server started on port {port}")
+
+    task_server = asyncio.create_task(server.serve())
+    task_shutdown = asyncio.create_task(app.shutdown_event.wait())
+
+    for fut in asyncio.as_completed([task_server, task_shutdown]):
+        await fut  # avoid pending futures
+        # as the server should not shut down on its own, it is propably a shutdown event
+        server.should_exit = True
+
+    logger.info("WebUI server stopped")
 
 
 if __name__ == "__main__":

@@ -38,7 +38,7 @@ class TofiscaCLI:
 
     @parser.command()
     def list_projects(self, _):
-        project_list = ProjectManager.list_projects()
+        project_list = ProjectManager.all_projects()
         if project_list:
             [self.print(name) for name in project_list]
         else:

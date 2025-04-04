@@ -15,9 +15,8 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
-#!/usr/bin/env python
+# !/usr/bin/env python
 # -*- coding: utf-8 -*-
-import logging
 import os
 import os.path
 import re
@@ -26,6 +25,7 @@ import time
 
 class HardwarePWMException(Exception):
     pass
+
 
 # copied from https://github.com/Pioreactor/rpi_hardware_pwm
 # License is also GPL v3, so this is ok.
@@ -67,7 +67,7 @@ class HardwarePWM:
 
         if rpi_version >= 5 and pwm_channel not in (2, 3):
             raise HardwarePWMException("Only channels 2 and 3 are available on the Rpi 5.")
-        if rpi_version < 5 and pwm_channel not in (0,1):
+        if rpi_version < 5 and pwm_channel not in (0, 1):
             raise HardwarePWMException("Only channels 0 and 1 are available on the Rpi 1,2,3 and 4.")
 
         if not self.is_overlay_loaded():
@@ -75,8 +75,7 @@ class HardwarePWM:
                 "Need to add 'dtoverlay=pwm-2chan' to /boot/firmware/config.txt and reboot"
             )
 
-
-        self.chippath: str = f"/sys/class/pwm/pwmchip{chip}"
+        self.chippath: str = self.get_chippath()
         self.pwm_channel = pwm_channel
         self.pwm_dir = f"{self.chippath}/pwm{self.pwm_channel}"
         self._duty_cycle = 0
@@ -93,8 +92,8 @@ class HardwarePWM:
             except PermissionError:
                 continue
 
-    def get_chippath(self) -> str:
-        for chip in [2,0]:
+    def get_chippath(self) -> str | None:
+        for chip in [2, 0]:
             chippath: str = f"/sys/class/pwm/pwmchip{chip}"
             if os.path.exists(chippath):
                 return chippath
@@ -103,7 +102,8 @@ class HardwarePWM:
         try:
             content = os.listdir("/sys/class/pwm")
             for dir in content:
-                if dir
+                # todo:
+                pass
 
         except FileNotFoundError:
             return False

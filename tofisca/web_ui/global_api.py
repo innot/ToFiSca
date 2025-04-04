@@ -15,10 +15,19 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
-from configuration_manager import ConfigItem
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from tofisca.film_specs import FilmFormat, FilmSpecs
+from tofisca.web_ui import Tags
+router = APIRouter()
 
 
-class ActiveProject(ConfigItem):
-    id: int = -1
-    name: str = None
+class ErrorDetails(BaseModel):
+    detail: str
 
+
+@router.get("/api/filmformats/all",
+            tags=[Tags.GLOBAL])
+async def get_all_filmformats() -> list[FilmFormat]:
+    return FilmSpecs.get_api_film_formats()

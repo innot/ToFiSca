@@ -99,7 +99,7 @@ class ConfigItem(BaseModel):
     def __init__(self, /, **kwargs):
         super().__init__(**kwargs)
 
-    async def store(self, scope: Scope | int = Scope.GLOBAL) -> None:
+    async def store(self, database: ConfigDatabase,scope: Scope | int = Scope.GLOBAL) -> None:
         """
         Store the data of this model to the configuration database.
         By default, the scope is for a Global setting. However, if the scope is
@@ -117,22 +117,20 @@ class ConfigItem(BaseModel):
         :param scope: Project id number. Default is Scope.Global.
         """
         json = self.model_dump_json()
-        db = ConfigDatabase.db()
-        await db.store_setting(self.get_qualified_name(), json, scope)
+        await database.store_setting(self.get_qualified_name(), json, scope)
 
-    async def retrieve(self, scope: Scope | int = Scope.GLOBAL) -> Self:
+    async def retrieve(self, database: ConfigDatabase, scope: Scope | int = Scope.GLOBAL) -> Self:
         """
         Retrieve the data for this Item from the database and set the model fields.
 
         By default, the scope is for a Global setting.
         However, if the scope is set to a project id, then the data is taken from the project scope.
-        If the project scope does not exist, it falls back to the global scope.
+        If the project scope does not exist, it falls back to the globalscope.
 
         If there is nothing in the Global scope, all fields are reset to their default value.
 
         """
-        db = ConfigDatabase.db()
-        json = await db.retrieve_setting(self.get_qualified_name(), scope)
+        json = await database.retrieve_setting(self.get_qualified_name(), scope)
         if not json:
             self.clear()
             return self
@@ -207,18 +205,17 @@ class ProjectItem(ConfigItem):
     pid: int = Field(-1, exclude=True)
 
     @override
-    async def store(self, *args):
-        db = ConfigDatabase.db()
-        if not db.is_valid_project_id(self.pid):
+    async def store(self, database: ConfigDatabase, *args):
+        if not await database.is_valid_project_id(self.pid):
             return ValueError(f"{self._pid} is not a valid project id.")
-        await super(ProjectItem, self).store(scope=self.pid)
+        await super(ProjectItem, self).store(database, scope=self.pid)
 
-    async def store_global(self):
+    async def store_global(self, database: ConfigDatabase):
         """
         Stores this item in the global scope, i.e. as default for new ProjectItems
         """
-        await super(ProjectItem, self).store(scope=Scope.GLOBAL)
+        await super(ProjectItem, self).store(database, scope=Scope.GLOBAL)
 
     @override
-    async def retrieve(self, *args) -> Self:
-        return await super(ProjectItem, self).retrieve(scope=self.pid)
+    async def retrieve(self, database: ConfigDatabase,*args) -> Self:
+        return await super(ProjectItem, self).retrieve(database, scope=self.pid)

@@ -40,8 +40,8 @@ from typing import Any, TypeAlias
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from tofisca import shutdown_event
-from tofisca.configuration import ConfigItem
+from app import App
+from configuration.config_item import ConfigItem
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -74,33 +74,16 @@ class WebSocketHandler:
 
 class WebsocketManager:
 
-    _instance: WebsocketManager = None
-
-    def __new__(cls) -> WebsocketManager:
-        # Check if the class has already been instantiated.
-        # If yes return the class Singleton
-        if cls._instance:
-            return cls._instance
-
-        cls._instance = super(WebsocketManager, cls).__new__(cls)
-        return cls._instance
-
-    @classmethod
-    def delete_singleton(cls):
-        """
-        Delete the Singleton ConfigDatabase instance so a new instance can be created.
-        This is supposed to be used for unit testing.
-        """
-        cls._db_instance = None
-
-    def __init__(self):
+    def __init__(self, app: App):
+        self._app = app
         self._send_handlers: set[WebSocketHandler] = set()
         self._shutdown_wait_task = asyncio.create_task(self._wait_for_shutdown())
         self._shutdown_wait_task.add_done_callback(lambda _: None)  # just to clean up
         self._is_closed = asyncio.Event()
 
     async def _wait_for_shutdown(self):
-        await shutdown_event.wait()
+        event = self._app.shutdown_event
+        await event.wait()
         self.close()
 
     def add_handler(self, handler: WebSocketHandler) -> None:
