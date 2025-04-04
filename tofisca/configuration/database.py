@@ -39,6 +39,7 @@ class Scope(enum.Enum):
     GLOBAL = "global"
     PROJECT = "project"
 
+
 class Base(DeclarativeBase):
     pass
 
@@ -107,7 +108,7 @@ class ConfigDatabase:
             self.Session.remove()
             self.connection.close()
         except AttributeError:
-            # this happens if there is an Exception in __init__ and the session is not created.
+            # This happens if there is an Exception in __init__ and the session is not created.
             # Or there is no connection set (only exists when using a memory database)
             pass
 
@@ -118,9 +119,11 @@ class ConfigDatabase:
         The retrieved value will be from the given scope (Project, global or default).
         If the value is not available in the given scope, it will be taken from a higher scope.
 
-        :param key: The key of the item to retrieve
-        :param scope: Either the name or id of a project or Scope.GLOBAL resp. Scope.DEFAULT.
-        :returns: The stored value or `None` if no value is stored for the given key.
+        :param key: The key of the setting to retrieve.
+        :param scope: The scope of the setting to retrieve.
+                      It Can be Scope.GLOBAL, Scope.DEFAULT or a project name or id.
+        :returns: The value of the setting or None if the given key does not exist
+        :raises: ValueError if the project or scope does not exist.
         """
         setting = await self._retrieve_setting(key, scope)
         if setting is None:
@@ -135,7 +138,10 @@ class ConfigDatabase:
         If the value is not available in the given scope, it will be taken from a higher scope.
 
         :param key: The key of the setting to retrieve.
-        :param scope: The scope of the setting to retrieve. Can be Scope.GLOBAL, Scope.DEFAULT or a project name or id.
+        :param scope: The scope of the setting to retrieve.
+                      It Can be Scope.GLOBAL, Scope.DEFAULT or a project name or id.
+        :returns: A :class:`Setting` object or None if the given key does not exist
+        :raises: ValueError if the project or scope does not exist.
         """
         real_scope, project_id = await self.get_scope(scope)
         session = self.Session()
@@ -150,7 +156,7 @@ class ConfigDatabase:
     async def store_setting(self, key: str, value: str | None, scope: str | int | Scope = Scope.GLOBAL) -> Setting:
         """
         Store the value for the given in the database at the given scope.
-        If the key exists at the given scope, the value will be updated and the old value
+        If the key exists in the given scope, the value will be updated and the old value
         will be saved in the value_prev field.
 
         :returns: The :class:`Setting` object representing the stored value.
@@ -185,13 +191,12 @@ class ConfigDatabase:
         proj = await self.get_project(pid)
         return str(proj.name)
 
-    async def get_project(self, project: str | int) -> Project | None:
+    async def get_project(self, project: str | int) -> Project:
         """
         Get the project with the given name or id number.
         If the name/id does not match an existing project `None` is returned.
 
-        :returns: a Project object, or `None`
-        :raises: ValueError if the project argument is invalid.
+        :returns: A Project object or `None`if the project does not exist.
         """
 
         if isinstance(project, int):
@@ -199,7 +204,7 @@ class ConfigDatabase:
         elif isinstance(project, str):
             stmt = Select(Project).where(Project.name == project)
         else:
-            raise TypeError(f"'{project}' is not a valid name or id for a project")
+            raise ValueError(f"'{project}' is not a valid name or id for a project")
 
         session = self.Session()
         project = session.scalars(stmt).first()
@@ -207,11 +212,11 @@ class ConfigDatabase:
 
     async def create_project(self, name: str | None = None) -> int:
         """
-
         Create a new project with the given name.
         If no name is given, a name with "Project {id}" will be generated.
         :param name: The name of the new project.
         :returns: The id of the new project.
+        :raises: ValueError if the project already exists.
         """
 
         if name is not None:
@@ -219,8 +224,8 @@ class ConfigDatabase:
                 raise TypeError("Project name must be a string")
             # check if a project with the name already exists
             project = await self.get_project(name)
-            if project:
-                raise ValueError(f"Project {name} already exists")
+            if project is not None:
+                raise ValueError(f"Project '{name}' already exist")
         else:
             name = ""  # Placeholder to be replaced by project id
 
@@ -236,6 +241,22 @@ class ConfigDatabase:
                 session.commit()
 
         return project.id
+
+    async def delete_project(self, pid: int) -> int | None:
+        """
+        Delete the project with the given id.
+
+        :param pid: The pid of the project to delete.
+        :return: The pid of the deleted project or `None` if the project did not exist
+        """
+        session = self.Session()
+        project = session.get(Project, pid)
+        if project is None:
+            return None
+        with self._db_write_lock:  # just in case...
+            session.delete(project)
+            session.commit()
+        return pid
 
     async def all_projects(self) -> dict[int, str]:
         """

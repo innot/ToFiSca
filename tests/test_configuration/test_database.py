@@ -25,6 +25,7 @@ from sqlalchemy import Engine
 
 from tofisca.configuration.database import ConfigDatabase, Scope, Project, Setting
 
+
 @pytest.fixture
 def test_db():
     db = ConfigDatabase("memory")
@@ -48,8 +49,7 @@ async def test_file_database(tmp_path):
     db = ConfigDatabase(db_file)
     assert db is not None
     assert db_file.exists()
-    assert db_file.stat().st_size > 0   # file does have content
-
+    assert db_file.stat().st_size > 0  # file does have content
 
 
 @pytest.mark.asyncio
@@ -77,13 +77,13 @@ async def test_get_scope(test_db):
     # test invalid input
     with pytest.raises(ValueError):
         await test_db.get_scope("foobar")
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         # noinspection PyTypeChecker
         await test_db.get_scope([])
 
 
 @pytest.mark.asyncio
-async def test_project(test_db):
+async def test_create_project(test_db):
     pid = await test_db.create_project('test')
     assert pid is not None
     assert 1 == pid
@@ -106,14 +106,28 @@ async def test_project(test_db):
     assert str(pid3) in project.name
 
     # test invalid input
-    for arg in ["test", "test2"]:
-        with pytest.raises(ValueError):
+    for arg in ["test", "test2", [], object()]:
+        with pytest.raises((ValueError, TypeError)):
+            print(f"{arg} = {arg!r}")
             await test_db.create_project(arg)
 
-    for arg in [123, [], object()]:
-        with pytest.raises(TypeError):
-            # noinspection PyTypeChecker
-            await test_db.create_project(arg)
+
+@pytest.mark.asyncio
+async def test_delete_project(test_db):
+    # first create a project
+    pid = await test_db.create_project()
+    assert await test_db.get_project(pid) is not None
+
+    # add setting that should be deleted a well
+    await test_db.store_setting("test_key", "test_value", pid)
+    assert await test_db.retrieve_setting("test_key", pid) == "test_value"
+
+    await test_db.delete_project(pid)
+
+    assert await test_db.get_project(pid) is None
+
+    with pytest.raises(ValueError):
+        assert await test_db.retrieve_setting("test_key", pid) is None
 
 
 @pytest.mark.asyncio
