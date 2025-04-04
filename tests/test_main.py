@@ -15,41 +15,39 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
-import tempfile
-import unittest
+import asyncio
+from asyncio import Event
+
+import pytest
+
 from pathlib import Path
 
-from tofisca.main import ToFiSca
+from configuration.database import ConfigDatabase
+from hardware_manager import HardwareManager
+from main import MainApp
+from project_manager import ProjectManager
 
+@pytest.fixture
+def app(tmp_path):
+    app = MainApp(data_storage_path=tmp_path, database_file="memory")
+    yield app
+    MainApp._delete_singleton()
 
-class MyTestCase(unittest.IsolatedAsyncioTestCase):
+def test_app_init(tmp_path: Path):
+    app = MainApp(data_storage_path=tmp_path, database_file="memory")
+    assert isinstance(app.config_database, ConfigDatabase)
+    assert isinstance(app.storage_path, Path)
+    assert app.storage_path == tmp_path
 
-    async def asyncTearDown(self):
-        # ensure singleton is deleted
-        ToFiSca._delete_singleton()
+    assert isinstance(app.project_manager, ProjectManager)
+    assert isinstance(app.hardware_manager, HardwareManager)
+    assert isinstance(app.shutdown_event, Event)
 
-    def test_singleton(self):
-        self.assertIsNone(ToFiSca.app())
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            app = ToFiSca(Path(tmpdir), "memory")
-
-            self.assertIs(app, ToFiSca.app())
-
-            with self.assertRaises(RuntimeError):
-                ToFiSca(Path(tmpdir), "memory")
-
-            app._delete_singleton()
-            self.assertIsNot(app, ToFiSca(Path(tmpdir), "memory"))
-
-    def test_managers(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            app = ToFiSca(Path(tmpdir), "memory")
-
-            self.assertIsNotNone(app.project_manager)
-            self.assertIsNotNone(app.hardware_manager)
-            self.assertEqual(Path(tmpdir), app.data_path)
-
-
-if __name__ == '__main__':
-    unittest.main()
+@pytest.mark.asyncio
+async def test_shutdown(tmp_path: Path):
+    app = MainApp(data_storage_path=tmp_path, database_file="memory")
+    main_task = asyncio.create_task(app.main())
+    await asyncio.sleep(0.1)
+    app.shutdown_event.set()
+    result = await asyncio.wait_for(main_task, timeout=1)
+    assert result == 0

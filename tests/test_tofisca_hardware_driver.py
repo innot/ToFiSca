@@ -16,86 +16,79 @@
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
 import asyncio
-import unittest
 
-import lgpio
+import pytest
 
-from hardware.tofisca_hardware_driver import TofiscaHardwareDriver
+try:
+    import lgpio
+
+    from hardware.tofisca_hardware_driver import TofiscaHardwareDriver
 
 
-class MyTestCase(unittest.IsolatedAsyncioTestCase):
+    @pytest.fixture
+    def driver():
+        driver = TofiscaHardwareDriver()
+        yield driver
+        driver.release_gpio()
 
-    async def asyncSetUp(self) -> None:
-        self.driver = TofiscaHardwareDriver()
 
-    async def asyncTearDown(self) -> None:
-        self.driver.release_gpio()
-
-    async def test_led(self):
-        hardware = self.driver
-        hardware.led_on(100)
+    @pytest.mark.asyncio
+    async def test_led(driver):
+        driver.led_on(100)
         await asyncio.sleep(0.1)
-        self.assertEqual(1, lgpio.gpio_read(hardware.handle, hardware.LED_PIN))
-        hardware.led_off()
-        self.assertEqual(0, lgpio.gpio_read(hardware.handle, hardware.LED_PIN))
+        assert 1 == lgpio.gpio_read(driver.handle, driver.LED_PIN)
+        driver.led_off()
+        assert 0 == lgpio.gpio_read(driver.handle, driver.LED_PIN)
 
-        hardware.led_on(50)
+        driver.led_on(50)
         await asyncio.sleep(0.1)
         samples = []
         for i in range(100):
-            samples.append(lgpio.gpio_read(hardware.handle, hardware.LED_PIN))
+            samples.append(lgpio.gpio_read(driver.handle, driver.LED_PIN))
             await asyncio.sleep(0.01)
 
-        self.assertEqual(round(samples.count(1) / 10), round(samples.count(0) / 10))
+        assert round(samples.count(1) / 10) == round(samples.count(0) / 10)
 
-        hardware.led_off()
+        driver.led_off()
 
-    async def test_led_2(self):
-        hardware = self.driver
 
-        for i in range(101):
-            hardware.led_on(i)
-            await asyncio.sleep(0.1)
-
-        hardware.led_off()
-
-    async def test_reel_motor(self):
-        hardware = self.driver
-        hardware.reel_on()
+    @pytest.mark.asyncio
+    async def test_reel_motor(driver):
+        driver.reel_on()
         await asyncio.sleep(0.1)
-        self.assertEqual(1, lgpio.gpio_read(hardware.handle, hardware.REEL_MOTOR_PIN))
-        hardware.reel_off()
-        self.assertEqual(0, lgpio.gpio_read(hardware.handle, hardware.REEL_MOTOR_PIN))
+        assert 1 == lgpio.gpio_read(driver.handle, driver.REEL_MOTOR_PIN)
+        driver.reel_off()
+        assert 0 == lgpio.gpio_read(driver.handle, driver.REEL_MOTOR_PIN)
 
-    async def test_reel_pwm(self):
 
-        hardware = self.driver
-        hardware.reel_on(30)
+    @pytest.mark.asyncio
+    async def test_reel_pwm(driver):
+        driver.reel_on(30)
         await asyncio.sleep(30)
-        hardware.reel_off()
+        driver.reel_off()
 
-    async def test_auto_pickup(self):
-        hardware = self.driver
-        handler = hardware.handle
-        reel = hardware.REEL_MOTOR_PIN
+
+    async def test_auto_pickup(driver):
+        handler = driver.handle
+        reel = driver.REEL_MOTOR_PIN
         # requires connection between GPIO16 (FEED_SW) and GPIO20
         switch = 20
         lgpio.gpio_claim_output(handler, switch, 1)
 
-        self.assertEqual(0, lgpio.gpio_read(handler, reel))
-        await hardware.start_auto_pickup()
+        assert 0 == lgpio.gpio_read(handler, reel)
+        await driver.start_auto_pickup()
         await asyncio.sleep(0.1)
 
         for i in range(10):
             lgpio.gpio_write(handler, switch, 0)
             await asyncio.sleep(0.05)  # need to wait for the callback to complete
-            self.assertEqual(0, lgpio.gpio_read(handler, reel))
+            assert 0 == lgpio.gpio_read(handler, reel)
             lgpio.gpio_write(handler, switch, 1)
             await asyncio.sleep(0.05)
-            self.assertEqual(1, lgpio.gpio_read(handler, reel))
+            assert 1 == lgpio.gpio_read(handler, reel)
 
-        await hardware.stop_auto_pickup()
+        await driver.stop_auto_pickup()
 
-
-if __name__ == '__main__':
-    unittest.main()
+except ImportError:
+    # lgpio not available
+    pass

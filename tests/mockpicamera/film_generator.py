@@ -90,6 +90,7 @@ class TestFrameGenerator:
         self._noise_level = 0.1
         self._defocus_level = 0.1
 
+
     @property
     def image_size(self) -> tuple:
         """The size of the generated image in pixels.

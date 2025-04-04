@@ -16,27 +16,21 @@
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
 
-import unittest
-
 from film_specs import FilmSpecs, film_specs, FilmFormat
 
 
-class MyTestCase(unittest.TestCase):
-    def test_get_all_keys(self):
+def test_get_all_keys():
+    items = FilmSpecs.get_all_keys()
+    assert isinstance(items, set)
+    assert len(film_specs) == len(items)
+    assert "super8" in items
 
-        items = FilmSpecs.get_all_keys()
-        self.assertTrue(isinstance(items, set))
-        self.assertEqual(len(film_specs), len(items))
-        self.assertTrue("super8" in items)
 
-    def test_get_api_film_formats(self):
-        result = FilmSpecs.get_api_film_formats()
-        self.assertIsInstance(result, list)
-        self.assertIsInstance(result[0], FilmFormat)
-        for item in result:
-            self.assertTrue(len(item.key) > 1)
-            self.assertTrue(len(item.name) > 1)
-            self.assertTrue(len(item.framerates) > 0)
-
-if __name__ == '__main__':
-    unittest.main()
+def test_get_api_film_formats():
+    result = FilmSpecs.get_api_film_formats()
+    assert isinstance(result, list)
+    assert isinstance(result[0], FilmFormat)
+    for item in result:
+        assert len(item.key) > 1
+        assert len(item.name) > 1
+        assert len(item.framerates) > 0

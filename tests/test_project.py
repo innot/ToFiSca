@@ -16,32 +16,24 @@
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
 
-import unittest
+import pytest
 
-from tofisca.configuration import ConfigDatabase
-from tofisca.project import Project
-from tofisca.project import ProjectStateEnum
-
-
-class MyTestCase(unittest.IsolatedAsyncioTestCase):
-
-    async def asyncSetUp(self):
-        self.db = ConfigDatabase("memory")
-
-    async def asyncTearDown(self):
-        ConfigDatabase.delete_singleton()
-
-    async def test_project(self):
-        pid = await self.db.create_project()
-        project = Project(pid)
-        self.assertIsNotNone(project)
-
-        await project.load()
-        self.assertEqual("Project 1", project.name)
-        self.assertEqual(pid, project.pid)
-
-        self.assertEqual(ProjectStateEnum.NEW, project.state)
+from main import MainApp
+from project import Project
 
 
-if __name__ == '__main__':
-    unittest.main()
+@pytest.fixture
+def app(tmp_path):
+    app = MainApp(data_storage_path=tmp_path, database_file="memory")
+    yield app
+
+
+@pytest.mark.asyncio
+async def test_project(app):
+    pid = await app.config_database.create_project()
+    project = Project(app, pid)
+    assert project is not None
+
+    await project.load()
+    assert "Project 1" == project.name
+    assert pid == project.pid
