@@ -1,20 +1,17 @@
 from __future__ import annotations
 
+import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from app import App
 from configuration.config_item import ProjectItem
 from errors import ProjectAlreadyExistsError, ProjectNotLoadedError
 from film_specs import FilmFormat
 from scanarea_manager import ScanAreaManager
-
-
-class AllProjects(BaseModel):
-    all: dict[str, int] = {"foo": 1, "bar": 2, "baz": 3}
 
 
 class ProjectStateEnum(Enum):
@@ -35,7 +32,7 @@ class ProjectState(ProjectItem):
 
 
 class ProjectPaths(ProjectItem):
-    project_path: str = ""
+    project_path: str = "{project.name}"
     scanned_images: str = "scanned_images"
     final_images: str = "final_images"
 
@@ -66,7 +63,7 @@ class Project:
     def __init__(self, app: App, pid: int, name: str = None) -> None:
 
         self.app = app
-        self.db = app.config_database # convenience shortcut
+        self.db = app.config_database  # convenience shortcut
 
         self._pid = pid
         self._name: str | None = name
@@ -94,7 +91,7 @@ class Project:
         await self._film_data.retrieve(self.db, self._pid)
         await self._scanarea.load_current_state(self.db, self._pid)
 
-        await self._paths.retrieve(self.db,self._pid)
+        await self._paths.retrieve(self.db, self._pid)
 
         return self
 
@@ -119,10 +116,15 @@ class Project:
         """
         The paths where to store the images and other data.
 
+        The returned paths may contain templates ('{project.name}' or '{project.id}').
+        Use :meth:`resolve_path` to resolve the templates and get the real path.
+
         This property is read-only and returns a copy of the internal one.
         Use :meth:`set_paths` to set the project paths.
         """
-        return self._paths.model_copy()
+        # apply templates
+        paths = self._paths.model_copy()
+        return paths
 
     async def set_name(self, new_name: str) -> None:
         """
@@ -130,7 +132,7 @@ class Project:
 
         The new name of the project must be unique, there must be no other project of the same name.
         This is enforced to make the project name useable as a descriptive path name for storing images and data.
-        Therefore the name must also contain no characters that are unusable for a filesystem name.
+        Therefore, the name must also contain no characters that are unusable for a filesystem name.
         """
         # check if the name contains any invalid character
         for c in new_name:
@@ -146,6 +148,8 @@ class Project:
         # change the name in the database
         await self.db.change_project_name(self._pid, new_name)
         self._name.name = new_name
+
+        # todo: maybe we need to change the name of the paths
 
     async def set_paths(self, new_paths: ProjectPaths):
         """
@@ -171,3 +175,53 @@ class Project:
             return p
         else:
             return self.app.project_manager.root_path / path
+
+    async def _delete_storage(self) -> None:
+        """
+        Delete the project storage and image folders.
+
+        All data within the folders is irreversebly deleted.
+
+        :raises Exception: A filesystem Extecption if the storage paths could not be deleted.
+        """
+        path = self.resolve_path(self._paths.project_path)
+        shutil.rmtree(path)
+
+        path = self.resolve_path(self._paths.scanned_images)
+        shutil.rmtree(path)
+
+        path = self.resolve_path(self._paths.final_images)
+        shutil.rmtree(path)
+
+    def resolve_path(self, folder_path: str | Path, create_folder: bool = True) -> Path:
+        """
+        Resolve a path from the path settings to a fully qualified absolute path.
+
+        If present, the templates '{project.name}' and {project.id}' will be replaced
+        with the actual values.
+
+        I the given folder is not absolute, i.e. does not start with '/', the returned folder
+        will be placed in the data_storage_path of the App this project belongs to.
+
+        If the folder pointed to by the path does not exist, it will be created.
+
+        :param folder_path:
+        :param create_folder: If set to `False`, the folder is not created.
+        :return: An absolute path to the specified folder.
+        :raises Exception: A filesystem Extecption if the storage paths could not be created.
+        """
+        folder_path = str(folder_path)  # convert Path to string...
+        folder_path = folder_path.replace("{project.name}", self._name)
+        folder_path = folder_path.replace("{project.id}", str(self._pid))
+
+        folder_path = Path(folder_path)  # ... and back to Path
+        if not folder_path.is_absolute():
+            # prepend the data_storage_path
+            root = self.app.project_manager.root_path
+            folder_path = root / folder_path
+
+        # create the folder if required
+        if create_folder:
+            folder_path.mkdir(parents=True, exist_ok=True)
+
+        return folder_path

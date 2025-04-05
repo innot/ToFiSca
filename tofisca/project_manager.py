@@ -128,6 +128,29 @@ class ProjectManager:
 
         return project
 
+    async def delete_project(self, pid: int, delete_storage: bool = False) -> None:
+        """
+        Delete the project with the given id.
+
+        :param pid:
+        :param delete_storage: If `True` the complete storage of the project will be deleted from the filesystem.
+        :raises ProjectDoesNotExistError: If the project does not exist.
+        """
+        active = self._active_project   # store here, because it will be overwritten by load_project
+
+        # check that project exists
+        project = await self.load_project(pid)
+
+        if delete_storage:
+            await project._delete_storage()
+
+        # remove from cache...
+        if project.pid in self._projects_cache:
+            self._projects_cache.pop(project.pid)
+
+        # ... and from database
+        await self.app.config_database.delete_project(project.pid)
+
     async def all_projects(self) -> dict[int, str]:
         all_projects = await self.db.all_projects()
         return all_projects
