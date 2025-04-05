@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Coroutine, Any
 
 import pytest
+import pytest_asyncio
 
 from errors import ProjectDoesNotExistError, ProjectNotLoadedError, ProjectAlreadyExistsError
 from main import MainApp
@@ -29,15 +30,14 @@ from project import Project, ProjectPathEntry
 @pytest.fixture
 def app(tmp_path):
     app = MainApp(data_storage_path=tmp_path, database_file="memory")
-    yield app
+    return app
 
 
-@pytest.fixture
-async def project_coro(app) -> Coroutine[Any, Any, Project]:
+@pytest_asyncio.fixture
+async def project(app) -> Project:
     pid = await app.config_database.create_project()
     project = Project(app, pid)
     await project.load()
-    # noinspection PyTypeChecker
     return project
 
 
@@ -53,12 +53,11 @@ async def test_project(app):
 
 
 @pytest.mark.asyncio
-async def test_load_project(app, project_coro):
-    project_orig = await project_coro  # generate one project
+async def test_load_project(app, project):
 
-    project_new = await Project.load_project(app, project_orig.pid)
+    project_new = await Project.load_project(app, project.pid)
 
-    assert project_new.pid == project_orig.pid
+    assert project_new.pid == project.pid
 
     # test non-existing project
     with pytest.raises(ProjectDoesNotExistError):
@@ -66,14 +65,11 @@ async def test_load_project(app, project_coro):
 
 
 @pytest.mark.asyncio
-async def test_name(app, project_coro):
+async def test_name(app, project):
     p = Project(app, 1)
 
     with pytest.raises(ProjectNotLoadedError):
         _ = p.name
-
-    # for the next tests we need a real project
-    project = await project_coro
 
     # test some invalid names
     for name in ['foo\nbar', 'foo/bar', 'foo"bar', 'foo:bar']:
@@ -94,9 +90,7 @@ async def test_name(app, project_coro):
 
 
 @pytest.mark.asyncio
-async def test_delete_storage(app, project_coro):
-    # generate some content
-    project = await project_coro
+async def test_delete_storage(app, project):
 
     for path_entry in project.all_paths.values():
         # create directory and a single file in it
@@ -111,8 +105,7 @@ async def test_delete_storage(app, project_coro):
         assert path.exists() is False
 
 @pytest.mark.asyncio
-async def test_paths(app, project_coro):
-    project = await project_coro
+async def test_paths(app, project):
 
     # test all_paths
     all_paths = project.all_paths
