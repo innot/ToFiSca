@@ -187,16 +187,25 @@ class ConfigDatabase:
             session.commit()
         return setting
 
-    async def get_project_name(self, pid: int) -> str:
-        proj = await self.get_project(pid)
-        return str(proj.name)
+    async def get_project_name(self, pid: int) -> str | None:
+        """
+        Get the name of the project with the given pid.
 
-    async def get_project(self, project: str | int) -> Project:
+        :param pid:
+        :return: The name or `None` if the project does not exist
+        """
+        proj = await self.get_project(pid)
+        if proj is None:
+            return None
+        else:
+            return str(proj.name)
+
+    async def get_project(self, project: str | int) -> Project | None:
         """
         Get the project with the given name or id number.
-        If the name/id does not match an existing project `None` is returned.
+        If the name/id does not match an existing project, `None` is returned.
 
-        :returns: A Project object or `None`if the project does not exist.
+        :returns: A Project object or `None` if the project does not exist.
         """
 
         if isinstance(project, int):

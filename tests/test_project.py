@@ -21,6 +21,7 @@ from typing import Coroutine, Any
 
 import pytest
 
+from errors import ProjectDoesNotExistError, ProjectNotLoadedError, ProjectAlreadyExistsError
 from main import MainApp
 from project import Project
 
@@ -36,6 +37,7 @@ async def project_coro(app) -> Coroutine[Any, Any, Project]:
     pid = await app.config_database.create_project()
     project = Project(app, pid)
     await project.load()
+    # noinspection PyTypeChecker
     return project
 
 
@@ -51,27 +53,62 @@ async def test_project(app):
 
 
 @pytest.mark.asyncio
+async def test_load_project(app, project_coro):
+    project_orig = await project_coro  # generate one project
+
+    project_new = await Project.load_project(app, project_orig.pid)
+
+    assert project_new.pid == project_orig.pid
+
+    # test non-existing project
+    with pytest.raises(ProjectDoesNotExistError):
+        await Project.load_project(app, 999)
+
+
+@pytest.mark.asyncio
+async def test_name(app, project_coro):
+    p = Project(app, 1)
+
+    with pytest.raises(ProjectNotLoadedError):
+        _ = p.name
+
+    # for the next tests we need a real project
+    project = await project_coro
+
+    # test some invalid names
+    for name in ['foo\nbar', 'foo/bar', 'foo"bar', 'foo:bar']:
+        with pytest.raises(ValueError):
+            await project.set_name(name)
+
+    # test duplicate name
+    project_dup = await app.project_manager.new_project("test")
+    with pytest.raises(ProjectAlreadyExistsError):
+        await project.set_name(project_dup.name)
+
+    # test valid names
+    old_name = project.name
+    await project.set_name(project.name)
+    assert project.name == old_name
+    await project.set_name("foo bar baz")
+    assert project.name == "foo bar baz"
+
+
+@pytest.mark.asyncio
 async def test_delete_storage(app, project_coro):
     # generate some content
     project = await project_coro
-    project_path = project.resolve_path(project.paths.project_path) # this creates the directory
 
-    project_file = project_path / "project_foo"
-    project_file.touch()
-
-
-    scanned_path = project.resolve_path(project.paths.scanned_images)
-    scanned_file = scanned_path / "scanned_bar"
-    scanned_file.touch()
-
-    final_path = project.resolve_path(project.paths.final_images)
-    final_file = final_path / "scanned_baz"
-    final_file.touch()
+    for path_entry in project.all_paths.values():
+        # create directory and a single file in it
+        path = project.resolve_path(path_entry.path)
+        file = path / path_entry.name
+        file.touch()
 
     await project._delete_storage()
-    assert project_path.exists() is False
-    assert scanned_path.exists() is False
-    assert final_path.exists() is False
+
+    for path_entry in project.all_paths.values():
+        path = Path(path_entry.resolved)
+        assert path.exists() is False
 
 
 @pytest.mark.asyncio
@@ -85,8 +122,17 @@ async def test_resolve_path(app):
     path = "/foo/bar/baz"
     assert project.resolve_path(path, create_folder=False) == root / path
 
-    path = "Project {project.name} {project.id} baz"
+    path = "Project ${name} ${pid} baz"
     assert project.resolve_path(path, create_folder=False).name == f"Project {project.name} {pid} baz"
+
+    path = "/${project}/foo"
+    assert project.resolve_path(path, create_folder=False) == root / f"/{project.name}/foo"
+
+    path = "/${scanned}/foo"
+    assert project.resolve_path(path, create_folder=False) == root / f"/{project.name}/scanned_images/foo"
+
+    path = "/${final}/foo"
+    assert project.resolve_path(path, create_folder=False) == root / f"/{project.name}/final_images/foo"
 
     # resolve for real and check that the folder was created
     path = project.resolve_path("Resolve")

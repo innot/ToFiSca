@@ -99,7 +99,7 @@ class ConfigItem(BaseModel):
     def __init__(self, /, **kwargs):
         super().__init__(**kwargs)
 
-    async def store(self, database: ConfigDatabase,scope: Scope | int = Scope.GLOBAL) -> None:
+    async def store(self, database: ConfigDatabase, scope: Scope | int = Scope.GLOBAL) -> None:
         """
         Store the data of this model to the configuration database.
         By default, the scope is for a Global setting. However, if the scope is
@@ -131,8 +131,8 @@ class ConfigItem(BaseModel):
 
         """
         json = await database.retrieve_setting(self.get_qualified_name(), scope)
-        if not json:
-            self.clear()
+        if json is None:
+            # leave the model untouched
             return self
         new_item = self.model_validate_json(json)
         self.copy_from(new_item)
@@ -147,8 +147,7 @@ class ConfigItem(BaseModel):
             value = getattr(item, field)
             setattr(self, field, value)
 
-    @classmethod
-    def get_qualified_name(cls) -> str:
+    def get_qualified_name(self) -> str:
         """
         Get a qualified name of this class that includes all superclass names.
 
@@ -165,10 +164,10 @@ class ConfigItem(BaseModel):
 
         The returned string can be used as a key to store the item in the database.
         """
-        mro_list = cls.__mro__
+        mro_list = self.__class__.__mro__
         names_list: list[str] = []
         for c in mro_list:
-            if c is ConfigItem:
+            if c is ConfigItem or c is ProjectItem or c is NamedProjectItem:
                 break
             if c is FieldChangedObserverMixin:
                 # skip the mixin
@@ -178,6 +177,7 @@ class ConfigItem(BaseModel):
         names_list.reverse()
 
         name = ".".join(names_list)
+
         return name
 
     def clear(self):
@@ -217,5 +217,21 @@ class ProjectItem(ConfigItem):
         await super(ProjectItem, self).store(database, scope=Scope.GLOBAL)
 
     @override
-    async def retrieve(self, database: ConfigDatabase,*args) -> Self:
+    async def retrieve(self, database: ConfigDatabase, *args) -> Self:
         return await super(ProjectItem, self).retrieve(database, scope=self.pid)
+
+class NamedProjectItem(ProjectItem):
+    """
+    A Project item that has a name attribute.
+
+    The name is appended to the key for the setting.
+
+    This can be used for lists of ProjectItems.
+    """
+    name: str = Field()     # no default; must exist
+
+    @override
+    def get_qualified_name(self) -> str:
+        name = super().get_qualified_name()
+        name += "." + self.name
+        return name

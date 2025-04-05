@@ -14,7 +14,7 @@ class ProjectNameAndId(BaseModel):
 
 
 class ActiveProject(ConfigItem):
-    id: int = -1
+    pid: int = -1
     name: str = None
 
 
@@ -38,7 +38,7 @@ class ProjectManager:
         self._projects_cache: dict[id, Project] = {}
 
         # The currently active project. Only one project can be active at a time.
-        self._active_project: ActiveProject | None = ActiveProject()
+        self._active_project: ActiveProject = ActiveProject()
 
         # The root path for all projects. Projects store their data in a subfolder with the name of the project
         root_path = self.app.storage_path
@@ -55,9 +55,9 @@ class ProjectManager:
         Read-only. Use :meth:'load_project' or :meth:'create_project' to set the active project.
         :return: The active project or 'None' if no project has been loaded or created.
         """
-        if self._active_project is None:
+        if self._active_project.pid == -1:
             self._active_project = await ActiveProject().retrieve(self.app.config_database)
-        project_id = self._active_project.id
+        project_id = self._active_project.pid
         try:
             project = await self.load_project(project_id)
             return project
@@ -87,7 +87,7 @@ class ProjectManager:
         else:
             # check if project exists
             all_projects = await self.db.all_projects()
-            if not project_id in all_projects.items():
+            if not project_id in all_projects.keys():
                 raise ProjectDoesNotExistError(project_id)
 
             # load the project from the database
@@ -96,7 +96,7 @@ class ProjectManager:
             self._projects_cache[project_id] = project
 
         # set it as the active project
-        self._active_project.id = project.pid
+        self._active_project.pid = project.pid
         self._active_project.name = project.name
 
         # store the active project in the database
@@ -107,7 +107,7 @@ class ProjectManager:
 
         # Project names must be unique.
         # Check if a project with this name already exists
-        if not name:
+        if name is not None:
             all_projects = await self.db.all_projects()
             for project_name in all_projects.values():
                 if project_name == name:
@@ -120,7 +120,7 @@ class ProjectManager:
         self._projects_cache[project.pid] = project
 
         # set it as the active project
-        self._active_project.id = project.pid
+        self._active_project.pid = project.pid
         self._active_project.name = project.name
 
         # store the active project in the database

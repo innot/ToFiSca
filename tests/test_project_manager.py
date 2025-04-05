@@ -1,8 +1,9 @@
 import pytest
 
-from errors import ProjectDoesNotExistError
+from errors import ProjectDoesNotExistError, ProjectAlreadyExistsError
 from main import MainApp
 from project import Project
+from project_manager import ProjectManager
 
 
 @pytest.fixture
@@ -48,6 +49,10 @@ async def test_new_project(app):
     assert project2.pid in all_projects.keys()
     assert project2.name == all_projects[project2.pid]
 
+    # test error for duplicate name
+    with pytest.raises(ProjectAlreadyExistsError):
+        await pm.new_project(project1.name)
+
 
 @pytest.mark.asyncio
 async def test_delete_project(app):
@@ -58,9 +63,16 @@ async def test_delete_project(app):
     for i in range(10):
         projects.append(await pm.new_project())
 
-    # delete the first project
-    await pm.delete_project(projects.pop(0).pid)
+    # delete the last project
+    project1 = projects.pop()
+    path = project1.resolve_path(project1.all_paths["project"].path)   # add some storage first
+    assert path.exists()
+    await pm.delete_project(project1.pid, delete_storage=True)
     assert len(await pm.all_projects()) == len(projects)
+    assert not path.exists()
+
+    # check that it is gone from the database
+    assert await app.config_database.get_project(project1.pid) is None
 
     # delete all other projects
     for project in projects:
@@ -72,9 +84,16 @@ async def test_delete_project(app):
         await pm.delete_project(999)
 
     # test delete_storage
-    # todo:
 
 
 @pytest.mark.asyncio
 async def test_active_project(app):
     pm = app.project_manager
+    project1 = await pm.new_project()
+    assert await pm.active_project is project1
+
+    # create a new ProjectManager and check that it retrieves the active project from the database
+    pm2 = ProjectManager(app)
+    assert pm2._active_project.pid == -1
+    active_project = await pm2.active_project
+    assert active_project.pid == project1.pid

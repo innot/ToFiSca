@@ -22,7 +22,7 @@ from pydantic_core import ErrorDetails
 
 from errors import ProjectAlreadyExistsError
 from models import PerforationLocation, Point, ScanArea
-from project import Project, ProjectPaths, FilmData, ProjectState
+from project import Project, ProjectPathEntry, FilmData, ProjectState
 from web_ui import Tags
 
 
@@ -115,10 +115,10 @@ async def put_project_name(new_name: ProjectName) -> ProjectName:
     return new_name
 
 
-@router.get("/api/project/paths",
+@router.get("/api/project/path",
             responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
             tags=[Tags.PROJECT_SETTING])
-async def get_project_paths() -> ProjectPaths:
+async def get_project_path() -> ProjectPathEntry:
     active_project = await get_active_project()
     return active_project.paths
 
@@ -126,7 +126,7 @@ async def get_project_paths() -> ProjectPaths:
 @router.put("/api/project/paths",
             responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
             tags=[Tags.PROJECT_SETTING])
-async def put_project_paths(project_paths: ProjectPaths) -> ProjectPaths:
+async def put_project_path(project_paths: ProjectPathEntry) -> ProjectPathEntry:
     active_project = await get_active_project()
     await active_project.set_paths(project_paths)
     return project_paths

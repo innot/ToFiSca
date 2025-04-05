@@ -18,8 +18,8 @@
 
 import pytest
 
-from configuration.config_item import ConfigItem, FieldChangedObserverMixin
-from configuration.database import ConfigDatabase
+from configuration.config_item import ConfigItem, FieldChangedObserverMixin, NamedProjectItem, ProjectItem
+from configuration.database import ConfigDatabase, Scope
 
 
 @pytest.fixture
@@ -77,3 +77,40 @@ async def test_callback(database):
     ti.add_observer_callback(callback)
     ti.value1 = "new"
     assert "new" == ti.value1
+
+
+@pytest.mark.asyncio
+async def test_project_item(database):
+    class TestItem(ProjectItem):
+        value: str = "value"
+
+    # create a project
+    pid = await database.create_project()
+
+    item = TestItem(pid=pid)
+
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=pid) is None
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.GLOBAL) is None
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.DEFAULT) is None
+
+    await item.store(database)
+
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=pid) is not None
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.GLOBAL) is None
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.DEFAULT) is None
+
+    item2 = await TestItem(pid=pid).retrieve(database)
+    assert item2 == item
+
+    await item.store_global(database)
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=pid) is not None
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.GLOBAL) is not None
+    assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.DEFAULT) is None
+
+
+def test_named_project_item(database):
+    class TestItem(NamedProjectItem):
+        pass
+
+    item = TestItem(name="the_name")
+    assert item.get_qualified_name() == "testitem.the_name"
