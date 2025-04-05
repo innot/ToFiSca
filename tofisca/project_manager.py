@@ -152,6 +152,12 @@ class ProjectManager:
         # ... and from database
         await self.app.config_database.delete_project(project.pid)
 
+        # restore active project if a different project was active
+        if project.pid != active.pid:
+            self._active_project = active
+        else:
+            self._active_project.clear()
+
     async def all_projects(self) -> dict[int, str]:
         all_projects = await self.db.all_projects()
         return all_projects

@@ -15,14 +15,13 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
-from typing import Coroutine
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
 from main import MainApp
-from project import Project
-from project_api import ProjectId
+from project_api import ProjectId, ProjectName
 from web_ui.server import webui_app, set_app, get_app
 
 
@@ -36,41 +35,47 @@ def client(tmp_path_factory) -> TestClient:
     return client
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture()
 async def project():
     app = get_app()
 
-    project_coro = await app.project_manager.new_project("TestProject")
-    yield project_coro
-    await app.project_manager.delete_project(project_coro)
+    project = await app.project_manager.new_project("TestProject")
+
+    yield project
+
+    await app.project_manager.delete_project(project.pid)
 
 
 @pytest.mark.asyncio
-async def test_allprojects(client, project) -> None:
-    response = client.get("/api/allprojects")
-    assert response.status_code == 200
-    content = response.json()
-    assert 0 == len(content)
-
-    # generate the new project
-    proj = await project
-
-    response = client.get("/api/allprojects")
-    assert response.status_code == 200
-    content = response.json()
-    assert 1 == len(content)
-    assert proj.name in content.values()
-
-
-@pytest.mark.asyncio
-async def test_project_id(client, project) -> None:
-
-    # start with no project
+async def test_no_project(client) -> None:
     response = client.get("/api/project/id")
     assert response.status_code == 404
 
-    p = await project
+    response = client.get("/api/project/name")
+    assert response.status_code == 404
+
+    response = client.get("/api/allprojects")
+    assert len(response.json()) == 0
+
+@pytest.mark.asyncio
+async def test_all_projects(client, project) -> None:
+    response = client.get("/api/allprojects")
+    assert response.status_code == 200
+    content = response.json()
+    assert content[str(project.pid)] == project.name
+
+@pytest.mark.asyncio
+async def test_project_id(client, project) -> None:
     response = client.get("/api/project/id")
     assert response.status_code == 200
-    project_id = ProjectId.model_validate_json(response.json())
-    assert project_id.pid == p.pid
+    content = response.json()
+    model = ProjectId.model_validate(content)
+    assert model.pid == project.pid
+
+@pytest.mark.asyncio
+async def test_project_name(client, project) -> None:
+    response = client.get("/api/project/name")
+    assert response.status_code == 200
+    content = response.json()
+    model = ProjectName.model_validate(content)
+    assert model.name == project.name

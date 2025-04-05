@@ -102,34 +102,58 @@ async def put_project_name(new_name: ProjectName) -> ProjectName:
     try:
         await active_project.set_name(new_name.name)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ErrorDetails(type="invalid_name",
-                                                                                         loc=tuple(),
-                                                                                         msg=str(e),
-                                                                                         input=new_name.name))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=ErrorDetails(type="invalid_name",
+                                                loc=tuple(),
+                                                msg=str(e),
+                                                input=new_name.name))
     except ProjectAlreadyExistsError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ErrorDetails(type="duplicate_name",
-                                                                                      loc=tuple(),
-                                                                                      msg="Project already exists",
-                                                                                      input=new_name.name))
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=ErrorDetails(type="duplicate_name",
+                                                loc=tuple(),
+                                                msg="Project already exists",
+                                                input=new_name.name))
 
     return new_name
+
+
+@router.get("/api/project/allpaths",
+            tags=[Tags.PROJECT_SETTING])
+async def get_all_paths() -> list[ProjectPathEntry]:
+    active_project = await get_active_project()
+    return list(active_project.all_paths.values())
 
 
 @router.get("/api/project/path",
             responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
             tags=[Tags.PROJECT_SETTING])
-async def get_project_path() -> ProjectPathEntry:
+async def get_project_path(name: str) -> ProjectPathEntry:
     active_project = await get_active_project()
-    return active_project.paths
+    try:
+        entry = await active_project.get_path(name)
+    except KeyError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=ErrorDetails(type="invalid_path",
+                                                loc=tuple(),
+                                                msg=f"Project has no path '{name}'",
+                                                input=name))
+    return entry
 
 
-@router.put("/api/project/paths",
+@router.put("/api/project/path",
             responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
             tags=[Tags.PROJECT_SETTING])
-async def put_project_path(project_paths: ProjectPathEntry) -> ProjectPathEntry:
+async def put_project_path(path_entry: ProjectPathEntry) -> ProjectPathEntry:
     active_project = await get_active_project()
-    await active_project.set_paths(project_paths)
-    return project_paths
+    try:
+        await active_project.update_path(path_entry)
+    except KeyError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=ErrorDetails(type="invalid_path",
+                                                loc=tuple(),
+                                                msg=f"Project has no path '{path_entry.name}'",
+                                                input=path_entry.name))
+    return path_entry
 
 
 # todo: cleanup functions below
