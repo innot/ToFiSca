@@ -184,7 +184,7 @@ class ConfigItem(BaseModel):
         """
         Set all fields to their default values.
         """
-        for field, field_info in self.model_fields.items():
+        for field, field_info in self.__class__.model_fields.items():
             if field_info.default_factory:
                 default_value = field_info.default_factory()
             else:

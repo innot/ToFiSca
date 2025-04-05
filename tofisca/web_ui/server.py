@@ -34,6 +34,16 @@ logger = logging.getLogger(__name__)
 # async def lifespan(app: FastAPI):
 #    yield
 
+_app: App | None = None
+
+def get_app():
+    global _app
+    return _app
+
+def set_app(app: App):
+    global _app
+    _app = app
+
 
 webui_app = FastAPI()
 
@@ -42,31 +52,9 @@ webui_app.include_router(project_api_router)
 webui_app.include_router(websocket_router)
 
 
-class ProjectSetupState(BaseModel):
-    scanAreaSet: bool = False
-    perforationLocationSet: bool = False
-    cameraSet: bool = False
-    whiteBalanceSet: bool = False
-    pathsSet: bool = False
-    nameSet: bool = False
-
-
-class ProjectStateType(Enum):
-    NOT_STARTED = "not_started"
-    RUNNING = "running"
-    PAUSED = "paused"
-    FINISHED = "finished"
-    ERROR = "error"
-
-
-class ProjectState(BaseModel):
-    current_frame: int = Field(0, ge=1)
-    last_scanned_frame: int = Field(0, ge=1)
-    last_processed_frame: int = Field(0, ge=1)
-    state: ProjectStateType = Field(ProjectStateType.NOT_STARTED)
-
-
 async def run_webui_server(app: App):
+
+    set_app(app)
 
     port = 80  # todo: make port configurable
 

@@ -15,7 +15,6 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
-from enum import Enum
 from queue import Queue
 from threading import Thread
 

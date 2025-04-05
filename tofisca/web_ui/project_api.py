@@ -20,11 +20,9 @@ from fastapi import APIRouter, status, HTTPException
 from pydantic import BaseModel
 from pydantic_core import ErrorDetails
 
-from app import App
 from errors import ProjectAlreadyExistsError
 from models import PerforationLocation, Point, ScanArea
 from project import Project, ProjectPaths, FilmData, ProjectState
-from project_manager import ProjectManager
 from web_ui import Tags
 
 
@@ -33,13 +31,16 @@ async def get_active_project() -> Project:
     Get the currently active project.
     :raises HTTPException: An HTTP_404_NOT_FOUND exception if no active project exists.
     """
+    from web_ui.server import get_app
+    app = get_app()
 
-    active_project = await App.instance().project_manager.active_project
+    active_project = await app.project_manager.active_project
     if not active_project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ErrorDetails(type="no_active_project",
-                                                                                       loc=tuple(),
-                                                                                       msg="No active project found",
-                                                                                       input=None))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=ErrorDetails(type="no_active_project",
+                                                loc=tuple(),
+                                                msg="No active project found",
+                                                input=None))
     return active_project
 
 
@@ -50,7 +51,10 @@ router = APIRouter()
             tags=[Tags.GLOBAL])
 async def get_all_projects() -> dict[int, str]:
     """A dictionary of all projects ids and their name"""
-    all_projects = await ProjectManager.all_projects()
+    from web_ui.server import get_app
+    app = get_app()
+    print(f"get_all_projects {app=}")
+    all_projects = await get_app().project_manager.all_projects()
     return all_projects
 
 

@@ -114,7 +114,7 @@ class ConfigDatabase:
 
     async def retrieve_setting(self, key: str, scope: int | str | Scope = Scope.GLOBAL) -> str | None:
         """
-        Get the value for the given key from the database.
+        Get the *value* for the given key from the database.
 
         The retrieved value will be from the given scope (Project, global or default).
         If the value is not available in the given scope, it will be taken from a higher scope.
@@ -132,7 +132,7 @@ class ConfigDatabase:
 
     async def _retrieve_setting(self, key: str, scope: str | int | Scope = Scope.GLOBAL) -> Setting | None:
         """
-        Get the Setting object for the given key and scope from the database.
+        Get the *Setting* object for the given key and scope from the database.
 
         The retrieved value will be from the given scope (Project, global or default).
         If the value is not available in the given scope, it will be taken from a higher scope.

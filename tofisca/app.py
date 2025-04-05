@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .configuration import ConfigDatabase
+    from .configuration.database import ConfigDatabase
     from .hardware_manager import HardwareManager
     from .project_manager import ProjectManager
 

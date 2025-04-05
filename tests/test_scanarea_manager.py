@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 import pytest
 
-import mockpicamera.film_generator as film_generator
+import film_generator as film_generator
 from configuration.database import ConfigDatabase, Scope
 from film_specs import FilmSpecKey
 from models import PerforationLocation, OffsetPoint, Size, ScanArea, Point
