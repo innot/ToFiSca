@@ -156,7 +156,7 @@ class Project:
         # resolve all paths first before handing them out
         result: dict[str, ProjectPathEntry] = {}
         for path_entry in self._paths.values():
-            path_entry.resolved = str(self.resolve_path(path_entry.path, create_folder=False))
+            self.resolve_path(path_entry, create_folder=False)
             result[path_entry.name] = path_entry.model_copy()
         return result
 
@@ -185,27 +185,41 @@ class Project:
 
         # todo: maybe we need to change the name of the paths
 
-    async def update_path(self, new_path: ProjectPathEntry):
+    async def get_path(self, key: str) -> ProjectPathEntry:
         """
-        Update the given path.
+        Get the path for the given key.
+
+        The returned object is a copy of the internal one. Changes to it will have no effect
+        until it is passed to the :meth:`update_path` method.
+
+        :param key: The name of the path, e.g. 'project' or 'scanned'
+        :return: The requested ProjectPathEntry
+        :raises: KeyError if there is no Path with the name given in key.
+        """
+        return self._paths[key].model_copy()
+
+    async def update_path(self, new_path_entry: ProjectPathEntry) -> None:
+        """
+        Update internal paths storage with the given ProjectPathEntry.
+
+        :raises: KeyError if the ProjectPathEntry name does not match any path of the project.
         """
         # get the current path entry
         try:
-            old_path_entry = self._paths[new_path.name]
+            old_path_entry = self._paths[new_path_entry.name]
         except KeyError:
-            raise ValueError(f"The Project has no path named {new_path.name}")
+            raise KeyError(f"The Project has no path named {new_path_entry.name}")
 
-        old_path_resolved = self.resolve_path(old_path_entry.path, create_folder=False)
+        old_path_resolved = self.resolve_path(old_path_entry, create_folder=False)
 
-        new_path = new_path.path
-        new_path_resolved = self.resolve_path(new_path, create_folder=False)
+        new_path_resolved = self.resolve_path(new_path_entry, create_folder=False)
 
         if new_path_resolved != old_path_resolved and old_path_resolved.exists():
             # The Path has changed. Rename the folder as well (if it exists)
             old_path_resolved.rename(new_path_resolved)
 
         # update the database
-        self._paths[old_path_entry.name].path = new_path
+        self._paths[old_path_entry.name].path = new_path_entry.path
         self._paths[old_path_entry.name].resolved = new_path_resolved
         await self._paths[old_path_entry.name].store(self.db, self._pid)
 
@@ -218,13 +232,14 @@ class Project:
         :raises Exception: A filesystem Extecption if the storage paths could not be deleted.
         """
         for entry in self._paths.values():
-            path = self.resolve_path(entry.path, create_folder=False)
+            path = self.resolve_path(entry, create_folder=False)
             if path.exists():
                 shutil.rmtree(path)
 
-    def resolve_path(self, folder_path: str | Path, create_folder: bool = True) -> Path:
+    def resolve_path(self, path_entry: ProjectPathEntry, create_folder: bool = True) -> Path:
         """
-        Resolve a path from the path settings to a fully qualified absolute path.
+        Resolve a path from the path settings to a fully qualified absolute path and set the
+        PropertyPathEntry.resolved property.
 
         If present, the templates '{project.name}' and {project.id}' will be replaced
         with the actual values.
@@ -234,12 +249,12 @@ class Project:
 
         If the folder pointed to by the path does not exist, it will be created.
 
-        :param folder_path:
+        :param path_entry: A ProjectPathEntry instance that should be resolved.
         :param create_folder: If set to `False`, the folder is not created.
         :return: An absolute path to the specified folder.
         :raises Exception: A filesystem Extecption if the storage paths could not be created.
         """
-        folder_path = str(folder_path)  # convert Path to string...
+        folder_path = str(path_entry.path)  # convert Path to string...
 
         # first build a list of all template identifiers
         identifiers = {"name": self._name, "pid": self._pid, }
@@ -264,5 +279,7 @@ class Project:
         # create the folder if required
         if create_folder:
             folder_path.mkdir(parents=True, exist_ok=True)
+
+        path_entry.resolved = str(folder_path)
 
         return folder_path

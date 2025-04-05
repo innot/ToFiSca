@@ -65,7 +65,7 @@ async def test_delete_project(app):
 
     # delete the last project
     project1 = projects.pop()
-    path = project1.resolve_path(project1.all_paths["project"].path)   # add some storage first
+    path = project1.resolve_path(project1.all_paths["project"])   # add some storage first
     assert path.exists()
     await pm.delete_project(project1.pid, delete_storage=True)
     assert len(await pm.all_projects()) == len(projects)

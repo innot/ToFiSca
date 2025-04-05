@@ -23,7 +23,7 @@ import pytest
 
 from errors import ProjectDoesNotExistError, ProjectNotLoadedError, ProjectAlreadyExistsError
 from main import MainApp
-from project import Project
+from project import Project, ProjectPathEntry
 
 
 @pytest.fixture
@@ -100,7 +100,7 @@ async def test_delete_storage(app, project_coro):
 
     for path_entry in project.all_paths.values():
         # create directory and a single file in it
-        path = project.resolve_path(path_entry.path)
+        path = project.resolve_path(path_entry)
         file = path / path_entry.name
         file.touch()
 
@@ -110,6 +110,48 @@ async def test_delete_storage(app, project_coro):
         path = Path(path_entry.resolved)
         assert path.exists() is False
 
+@pytest.mark.asyncio
+async def test_paths(app, project_coro):
+    project = await project_coro
+
+    # test all_paths
+    all_paths = project.all_paths
+    assert "project" in all_paths.keys()
+    assert len(all_paths) == len(project._paths)
+
+    # test get_path
+    pp = await project.get_path("project")
+    assert pp.name == "project"
+    project.resolve_path(pp)    # create the path for real
+
+    # update path
+    pp.path = "${pid} - ${name}"
+    await project.update_path(pp)
+    pp2 = await project.get_path("project")
+    assert pp2.name == "project"
+    assert pp2.path == "${pid} - ${name}"
+    assert Path(pp2.resolved).name == f"{project.pid} - {project.name}"
+
+    # check that it has been stored in the database
+    project_new = await app.project_manager.load_project(project.pid, disable_cache=True)
+    pe = await project_new.get_path("project")
+    assert pe.path == "${pid} - ${name}"
+    assert Path(pe.resolved).name == f"{project.pid} - {project.name}"
+
+    # check that the folder has been renamed
+    path = Path(pp.resolved)
+    assert path.exists()
+    assert path.is_dir()
+    assert path.name == f"{project.pid} - {project.name}"
+
+
+    # test invalid paths
+    with pytest.raises(KeyError):
+        await project.get_path("foo")
+
+    pe.name = "bar"
+    with pytest.raises(KeyError):
+        await project.update_path(pe)
 
 @pytest.mark.asyncio
 async def test_resolve_path(app):
@@ -119,24 +161,34 @@ async def test_resolve_path(app):
 
     root = Path(os.path.abspath(os.sep))
 
-    path = "/foo/bar/baz"
-    assert project.resolve_path(path, create_folder=False) == root / path
+    entry = ProjectPathEntry(name="test", path="", resolved="")
 
-    path = "Project ${name} ${pid} baz"
-    assert project.resolve_path(path, create_folder=False).name == f"Project {project.name} {pid} baz"
+    entry.path = "/foo/bar/baz"
+    assert project.resolve_path(entry, create_folder=False) == root / entry.path
 
-    path = "/${project}/foo"
-    assert project.resolve_path(path, create_folder=False) == root / f"/{project.name}/foo"
+    entry.path = "Project ${name} ${pid} baz"
+    assert project.resolve_path(entry, create_folder=False).name == f"Project {project.name} {pid} baz"
 
-    path = "/${scanned}/foo"
-    assert project.resolve_path(path, create_folder=False) == root / f"/{project.name}/scanned_images/foo"
+    entry.path = "/${project}/foo"
+    assert project.resolve_path(entry, create_folder=False) == root / f"/{project.name}/foo"
 
-    path = "/${final}/foo"
-    assert project.resolve_path(path, create_folder=False) == root / f"/{project.name}/final_images/foo"
+    entry.path = "/${scanned}/foo"
+    assert project.resolve_path(entry, create_folder=False) == root / f"/{project.name}/scanned_images/foo"
+
+    entry.path = "/${final}/foo"
+    assert project.resolve_path(entry, create_folder=False) == root / f"/{project.name}/final_images/foo"
+
+    # check that circular templates are caught
+    entry = project.all_paths["scanned"]
+    entry.path = "${scanned}/foo"
+    await project.update_path(entry)
+    with pytest.raises(RuntimeError):
+        project.resolve_path(entry, create_folder=False)
 
     # resolve for real and check that the folder was created
-    path = project.resolve_path("Resolve")
+    entry = await project.get_path("project")
+    path = project.resolve_path(entry)
     assert path.exists() is True
     assert path.is_absolute() is True
     assert path.is_dir() is True
-    assert path.name == "Resolve"
+    assert path.name == project.name

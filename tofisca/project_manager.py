@@ -74,15 +74,16 @@ class ProjectManager:
         """
         return self._root_path
 
-    async def load_project(self, project_id: int = None) -> Project:
+    async def load_project(self, project_id: int = None, disable_cache: bool = False) -> Project:
         """
         Get the project with the given id.
         :param project_id: The id of the project to get.
+        :param disable_cache: If `True`, the project is loaded from the database, even when it is in the cache.
         :return: The Project instance
         :raises ProjectDoesNotExistError: If the project does not exist.
         """
         # check if project is cached
-        if project_id in self._projects_cache:
+        if project_id in self._projects_cache and not disable_cache:
             project = self._projects_cache[project_id]
         else:
             # check if project exists
