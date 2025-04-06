@@ -17,9 +17,8 @@
 #
 
 from fastapi import APIRouter, status, HTTPException
-from pydantic import BaseModel
-from pydantic_core import ErrorDetails
 
+from api_errors import APINoActiveProject, APIProjectAlreadyExists, APIInvalidDataError, APIObjectNotFoundError
 from errors import ProjectAlreadyExistsError
 from models import PerforationLocation, Point, ScanArea
 from project import Project, ProjectPathEntry, FilmData, ProjectState
@@ -36,88 +35,82 @@ async def get_active_project() -> Project:
 
     active_project = await app.project_manager.active_project
     if not active_project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=ErrorDetails(type="no_active_project",
-                                                loc=tuple(),
-                                                msg="No active project found",
-                                                input=None))
+        raise HTTPException(status_code=APINoActiveProject.status_code,
+                            detail=APINoActiveProject())
     return active_project
 
 
 router = APIRouter()
 
 
-@router.get("/api/allprojects",
-            tags=[Tags.GLOBAL])
-async def get_all_projects() -> dict[int, str]:
-    """A dictionary of all projects ids and their name"""
-    from web_ui.server import get_app
-    app = get_app()
-    print(f"get_all_projects {app=}")
-    all_projects = await get_app().project_manager.all_projects()
-    return all_projects
-
-
-class ProjectId(BaseModel):
-    """Wrap project id into a model"""
-    pid: int = -1
+###############################################################################
+#
+# Projects
+#
+###############################################################################
 
 
 @router.get("/api/project/id",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING])
-async def get_project_id() -> ProjectId:
+async def get_project_id() -> int:
     """The id of the currently active project."""
     active_project = await get_active_project()
     pid = active_project.pid
-    return ProjectId(pid=pid)
-
-
-class ProjectName(BaseModel):
-    """Wrap project name into a model"""
-    name: str = "Unknown"
+    return pid
 
 
 @router.get("/api/project/name",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING])
-async def get_project_name() -> ProjectName:
+async def get_project_name() -> str:
     """Get the name of the currently active project."""
     active_project = await get_active_project()
     name = active_project.name
-    return ProjectName(name=name)
+    return name
 
 
 @router.put("/api/project/name",
-            responses={status.HTTP_409_CONFLICT: {"model": ErrorDetails},
-                       status.HTTP_400_BAD_REQUEST: {"model": ErrorDetails},
-                       status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+                APIProjectAlreadyExists.status_code: {"model": APIProjectAlreadyExists},
+                APIInvalidDataError.status_code: {"model": APIInvalidDataError},
+            },
             tags=[Tags.PROJECT_SETTING])
-async def put_project_name(new_name: ProjectName) -> ProjectName:
+async def put_project_name(name: str) -> str:
     """
     Change the name of the currently active project.
     The new name must be unique and must not contain any characters that are unusable for a filesystem name.
     """
     active_project = await get_active_project()
     try:
-        await active_project.set_name(new_name.name)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=ErrorDetails(type="invalid_name",
-                                                loc=tuple(),
-                                                msg=str(e),
-                                                input=new_name.name))
-    except ProjectAlreadyExistsError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=ErrorDetails(type="duplicate_name",
-                                                loc=tuple(),
-                                                msg="Project already exists",
-                                                input=new_name.name))
+        await active_project.set_name(name)
+        return name
 
-    return new_name
+    except ValueError:
+        apierror = APIInvalidDataError(
+            title="Invalid project name",
+            details="The name must not contain any characters that are unusable for a filesystem name.")
+        raise HTTPException(status_code=apierror.status_code, detail=apierror)
+
+    except ProjectAlreadyExistsError:
+        apierror = APIProjectAlreadyExists(name=name)
+        raise HTTPException(status_code=apierror.status_code, detail=apierror)
+
+
+###############################################################################
+# Project Paths
+###############################################################################
 
 
 @router.get("/api/project/allpaths",
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def get_all_paths() -> list[ProjectPathEntry]:
     active_project = await get_active_project()
@@ -125,69 +118,98 @@ async def get_all_paths() -> list[ProjectPathEntry]:
 
 
 @router.get("/api/project/path",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+                APIObjectNotFoundError.status_code: {"model": APIObjectNotFoundError},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def get_project_path(name: str) -> ProjectPathEntry:
     active_project = await get_active_project()
     try:
         entry = await active_project.get_path(name)
+        return entry
     except KeyError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=ErrorDetails(type="invalid_path",
-                                                loc=tuple(),
-                                                msg=f"Project has no path '{name}'",
-                                                input=name))
-    return entry
+        apierror = APIObjectNotFoundError(
+            title="Invalid project path",
+            details=f"The project has no path with the name '{name}'",
+            error_type="APIProjectPathNotFoundError"
+        )
+        raise HTTPException(status_code=apierror.status_code, detail=apierror)
 
 
 @router.put("/api/project/path",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+                APIObjectNotFoundError.status_code: {"model": APIObjectNotFoundError},
+                APIInvalidDataError.status_code: {"model": APIInvalidDataError},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def put_project_path(path_entry: ProjectPathEntry) -> ProjectPathEntry:
     active_project = await get_active_project()
     try:
         await active_project.update_path(path_entry)
+        return path_entry
     except KeyError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=ErrorDetails(type="invalid_path",
-                                                loc=tuple(),
-                                                msg=f"Project has no path '{path_entry.name}'",
-                                                input=path_entry.name))
-    return path_entry
+        apierror = APIObjectNotFoundError(
+            title="Invalid project path",
+            details=f"The project has no path with the name '{path_entry.name}'",
+            error_type="APIProjectPathNotFoundError"
+        )
+        raise HTTPException(status_code=apierror.status_code, detail=apierror)
+    except ValueError as exc:
+        apierror = APIInvalidDataError(
+            title="Invalid project path",
+            details=f"The path '{path_entry.name}' cannot be resolved to a real path.\nReason: {str(exc)}",
+        )
+        raise HTTPException(status_code=apierror.status_code, detail=apierror)
 
 
-# todo: cleanup functions below
+###############################################################################
+# Project Film Data
+###############################################################################
 
 @router.get("/api/project/filmdata",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+                APIObjectNotFoundError.status_code: {"model": APIObjectNotFoundError},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def get_project_filmdata() -> FilmData:
     raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 @router.put("/api/project/filmdata",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+                APIObjectNotFoundError.status_code: {"model": APIObjectNotFoundError},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def put_project_filmdata(project_metadata: FilmData) -> FilmData:
     raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 @router.get("/api/project/state",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def get_project_state() -> ProjectState:
     raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 @router.get("/api/project/perf/location",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def get_perf_location() -> PerforationLocation:
     raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 @router.put("/api/project/perf/location",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING],
             )
 async def put_perf_location(perf_location: PerforationLocation) -> PerforationLocation:
@@ -195,7 +217,9 @@ async def put_perf_location(perf_location: PerforationLocation) -> PerforationLo
 
 
 @router.post("/api/project/perf/detect",
-             responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+             responses={
+                 APINoActiveProject.status_code: {"model": APINoActiveProject},
+             },
              tags=[Tags.PROJECT_SETTING]
              )
 async def post_perfdetect(startpoint: Point) -> PerforationLocation:
@@ -203,7 +227,9 @@ async def post_perfdetect(startpoint: Point) -> PerforationLocation:
 
 
 @router.get("/api/project/scanarea",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING])
 async def get_scanarea() -> ScanArea:
     """
@@ -215,7 +241,9 @@ async def get_scanarea() -> ScanArea:
 
 
 @router.put("/api/project/scanarea",
-            responses={status.HTTP_404_NOT_FOUND: {"model": ErrorDetails}},
+            responses={
+                APINoActiveProject.status_code: {"model": APINoActiveProject},
+            },
             tags=[Tags.PROJECT_SETTING],
             )
 async def put_scanarea(scanarea: ScanArea) -> ScanArea:

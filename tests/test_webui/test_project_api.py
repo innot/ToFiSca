@@ -21,7 +21,6 @@ import pytest_asyncio
 from fastapi.testclient import TestClient
 
 from main import MainApp
-from project_api import ProjectId, ProjectName
 from web_ui.server import webui_app, set_app, get_app
 
 
@@ -54,28 +53,38 @@ async def test_no_project(client) -> None:
     response = client.get("/api/project/name")
     assert response.status_code == 404
 
-    response = client.get("/api/allprojects")
-    assert len(response.json()) == 0
-
-@pytest.mark.asyncio
-async def test_all_projects(client, project) -> None:
-    response = client.get("/api/allprojects")
-    assert response.status_code == 200
-    content = response.json()
-    assert content[str(project.pid)] == project.name
-
 @pytest.mark.asyncio
 async def test_project_id(client, project) -> None:
     response = client.get("/api/project/id")
     assert response.status_code == 200
-    content = response.json()
-    model = ProjectId.model_validate(content)
-    assert model.pid == project.pid
+    pid = response.json()
+    assert isinstance(pid, int)
+    assert pid == project.pid
 
 @pytest.mark.asyncio
 async def test_project_name(client, project) -> None:
     response = client.get("/api/project/name")
     assert response.status_code == 200
-    content = response.json()
-    model = ProjectName.model_validate(content)
-    assert model.name == project.name
+    name = response.json()
+    assert isinstance(name, str)
+    assert name == project.name
+
+    # test put new name
+    response = client.put("/api/project/name?name='new Project name'")
+    assert response.status_code == 200
+    name = response.json()
+    assert isinstance(name, str)
+    assert name == project.name
+
+    # test invalid name
+    response = client.put("/api/project/name?name='new:name'")
+    assert response.status_code == 400
+
+    # test duplicate name
+    app = get_app()
+
+    project = await app.project_manager.new_project("TestProject2")
+
+    yield project
+
+    await app.project_manager.delete_project(project.pid)

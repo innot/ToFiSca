@@ -17,16 +17,19 @@
 #
 import asyncio
 import logging
-from enum import Enum
 
 import uvicorn
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException
+from starlette.responses import JSONResponse
 
+from api_errors import APIProjectDoesNotExist, APIInvalidDataError, APIProjectAlreadyExists
 from app import App
+from errors import ProjectDoesNotExistError, ProjectAlreadyExistsError
 from .global_api import router as global_api_router
 from .project_api import router as project_api_router
-from .senditem_websocket import router as websocket_router
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +39,11 @@ logger = logging.getLogger(__name__)
 
 _app: App | None = None
 
+
 def get_app():
     global _app
     return _app
+
 
 def set_app(app: App):
     global _app
@@ -49,11 +54,52 @@ webui_app = FastAPI()
 
 webui_app.include_router(global_api_router)
 webui_app.include_router(project_api_router)
-webui_app.include_router(websocket_router)
+
+
+# webui_app.include_router(websocket_router)
+
+@webui_app.exception_handler(HTTPException)
+async def http_exception_handler(_, exc: HTTPException):
+    # Put the HTTPException in a JSONResponse
+    return JSONResponse(jsonable_encoder(exc.detail), status_code=exc.status_code)
+
+
+@webui_app.exception_handler(ProjectAlreadyExistsError)
+async def project_already_exists_handler(_, exc: ProjectAlreadyExistsError):
+    apierror = APIProjectAlreadyExists(name=exc.project_name)
+    return JSONResponse(jsonable_encoder(apierror), status_code=APIProjectAlreadyExists.status_code)
+
+
+@webui_app.exception_handler(ProjectDoesNotExistError)
+async def project_does_not_exist_handler(_, exc: ProjectDoesNotExistError):
+    apierror = APIProjectDoesNotExist(identifier=exc.project_id)
+    return JSONResponse(jsonable_encoder(apierror), status_code=apierror.status_code)
+
+
+@webui_app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_, exc: RequestValidationError):
+    # Change the FastApi RequestValidationError into an APIInvalidData response
+    # This ensures that the frontend can handle this error the same as all other APIErrors
+    errors = exc.errors()
+    errors_list: list[str] = []
+
+    for error in errors:
+        msg = f"The api {error['loc'][0]} parameter '{error['loc'][1]}' is invalid: {error['msg']}"
+        errors_list.append(msg)
+
+    details = "\n".join(errors_list)
+
+    if exc.body is not None:
+        details += f"\nQuery data:\n{exc.body}"
+
+    apierror = APIInvalidDataError(
+        title="Invalid data",
+        details=details,
+    )
+    return JSONResponse(jsonable_encoder(apierror), status_code=apierror.status_code)
 
 
 async def run_webui_server(app: App):
-
     set_app(app)
 
     port = 80  # todo: make port configurable

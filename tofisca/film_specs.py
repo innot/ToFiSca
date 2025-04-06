@@ -169,8 +169,7 @@ class FilmSpecs:
     @classmethod
     def get_api_film_formats(cls) -> list[FilmFormat]:
         result: list[FilmFormat] = []
-        items = cls.get_all_keys()
-        for key in items:
+        for key in FilmSpecKey:
             specs = film_specs[key]
             ff = FilmFormat(key=key, name=specs[FSKeys.NAME], framerates=list(specs[FSKeys.FRAMERATES]))
             result.append(ff)

@@ -119,11 +119,12 @@ async def test_paths(app, project):
 
     # update path
     pp.path = "${pid} - ${name}"
-    await project.update_path(pp)
+    ret_val = await project.update_path(pp)
     pp2 = await project.get_path("project")
     assert pp2.name == "project"
     assert pp2.path == "${pid} - ${name}"
     assert Path(pp2.resolved).name == f"{project.pid} - {project.name}"
+    assert ret_val == pp2
 
     # check that it has been stored in the database
     project_new = await app.project_manager.load_project(project.pid, disable_cache=True)
@@ -175,7 +176,7 @@ async def test_resolve_path(app):
     entry = project.all_paths["scanned"]
     entry.path = "${scanned}/foo"
     await project.update_path(entry)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
         project.resolve_path(entry, create_folder=False)
 
     # resolve for real and check that the folder was created

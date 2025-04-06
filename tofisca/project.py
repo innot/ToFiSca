@@ -11,7 +11,7 @@ from pydantic import Field
 from app import App
 from configuration.config_item import ProjectItem
 from errors import ProjectAlreadyExistsError, ProjectNotLoadedError, ProjectDoesNotExistError
-from film_specs import FilmFormat
+from film_specs import FilmFormat, FilmSpecs, FilmSpecKey
 from scanarea_manager import ScanAreaManager
 
 
@@ -47,7 +47,7 @@ class FilmData(ProjectItem):
     date: str = ""
     author: str = ""
     description: str = ""
-    format: Union[FilmFormat, None] = None
+    format: FilmFormat = FilmSpecs.get_film_format(FilmSpecKey.SUPER8)
     fps: float = 18
     stock: str = ""
     tags: list[str] = []
@@ -194,15 +194,17 @@ class Project:
 
         :param key: The name of the path, e.g. 'project' or 'scanned'
         :return: The requested ProjectPathEntry
-        :raises: KeyError if there is no Path with the name given in key.
+        :raises KeyError: If there is no Path with the name given in key.
         """
         return self._paths[key].model_copy()
 
-    async def update_path(self, new_path_entry: ProjectPathEntry) -> None:
+    async def update_path(self, new_path_entry: ProjectPathEntry) -> ProjectPathEntry:
         """
         Update internal paths storage with the given ProjectPathEntry.
 
-        :raises: KeyError if the ProjectPathEntry name does not match any path of the project.
+        :return: The updated ProjectPathEntry
+        :raises KeyError: If the ProjectPathEntry name does not match any path of the project.
+        :raises ValueError: If the new path could not be resolved.
         """
         # get the current path entry
         try:
@@ -222,6 +224,7 @@ class Project:
         self._paths[old_path_entry.name].path = new_path_entry.path
         self._paths[old_path_entry.name].resolved = new_path_resolved
         await self._paths[old_path_entry.name].store(self.db, self._pid)
+        return self._paths[old_path_entry.name].model_copy()
 
     async def _delete_storage(self) -> None:
         """
@@ -268,7 +271,7 @@ class Project:
             folder_path = resolver.safe_substitute(identifiers)
             counter += 1
             if counter > 10:
-                raise RuntimeError("Template substitution counter exceeded. Probably due to circular template.")
+                raise ValueError("Template substitution counter exceeded. Probably due to circular template.")
 
         folder_path = Path(folder_path)  # ... and back to Path
         if not folder_path.is_absolute():
