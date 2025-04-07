@@ -105,6 +105,12 @@ class TestFrameGenerator:
         """
         return self._width_px, self._height_px
 
+    @image_size.setter
+    def image_size(self, size: tuple[int,int]) -> None:
+        width, height = size
+        self._width_px = width
+        self._height_px = height
+
     @property
     def aspect_ratio(self) -> float:
         """The ratio of with to height of the generated image.

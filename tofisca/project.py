@@ -4,7 +4,6 @@ import shutil
 from enum import Enum
 from pathlib import Path
 from string import Template
-from typing import Union
 
 from pydantic import Field
 
@@ -12,6 +11,7 @@ from app import App
 from configuration.config_item import ProjectItem
 from errors import ProjectAlreadyExistsError, ProjectNotLoadedError, ProjectDoesNotExistError
 from film_specs import FilmFormat, FilmSpecs, FilmSpecKey
+from models import ScanArea
 from scanarea_manager import ScanAreaManager
 
 
@@ -159,6 +159,33 @@ class Project:
             self.resolve_path(path_entry, create_folder=False)
             result[path_entry.name] = path_entry.model_copy()
         return result
+
+    @property
+    def film_data(self) -> FilmData:
+        """
+        The project film metadata, like title, description, format and more.
+        """
+        return self._film_data.model_copy()
+
+    @film_data.setter
+    def film_data(self, filmdata: FilmData) -> None:
+        if filmdata is None or not isinstance(filmdata, FilmData):
+            raise ValueError("filmdata must be a FilmData instance")
+
+        self._film_data = filmdata
+        self._film_data.store(self.db, self._pid)
+
+    @property
+    def scanarea(self) -> ScanArea:
+        """
+        Get the current scan area, referenced to a perforation hole.
+
+        This property is read-only.
+        To change the scanarea use the :meth`scanarea_autodetect` or
+        :meth:`scanarea_manual_detect` methods.
+
+        If neither of these methods has been called, this property will be `None`.
+        """
 
     async def set_name(self, new_name: str) -> None:
         """

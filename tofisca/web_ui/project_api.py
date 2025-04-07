@@ -175,17 +175,22 @@ async def put_project_path(path_entry: ProjectPathEntry) -> ProjectPathEntry:
             },
             tags=[Tags.PROJECT_SETTING])
 async def get_project_filmdata() -> FilmData:
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
+    active_project = await get_active_project()
+    filmdata = active_project.film_data
+    return filmdata
 
 
 @router.put("/api/project/filmdata",
             responses={
                 APINoActiveProject.status_code: {"model": APINoActiveProject},
-                APIObjectNotFoundError.status_code: {"model": APIObjectNotFoundError},
+                APIInvalidDataError.status_code: {"model": APIInvalidDataError},
             },
-            tags=[Tags.PROJECT_SETTING])
-async def put_project_filmdata(project_metadata: FilmData) -> FilmData:
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
+            tags=[Tags.PROJECT_SETTING]
+            )
+async def put_project_filmdata(filmdata: FilmData) -> FilmData:
+    active_project = await get_active_project()
+    active_project.film_data = filmdata
+    return filmdata
 
 
 @router.get("/api/project/state",

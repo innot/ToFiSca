@@ -161,8 +161,8 @@ async def test_get_scanarea_from_perforation(sam):
 
     assert 0.569 == pytest.approx(scanarea.size.width, rel=1e-3)  # scanarea width
     assert 0.422 == pytest.approx(scanarea.size.height, rel=1e-3)  # scanarea height
-    assert 0.0914 == pytest.approx(scanarea.ref.width, rel=1e-3)  # perforation width
-    assert 0.1143 == pytest.approx(scanarea.ref.height, rel=1e-3)  # perforation height
+    assert 0.0914 == pytest.approx(scanarea.perf_ref.width, rel=1e-3)  # perforation width
+    assert 0.1143 == pytest.approx(scanarea.perf_ref.height, rel=1e-3)  # perforation height
     assert 0.0046 == pytest.approx(scanarea.ref_delta.dx, rel=1e-3)  # offset dx
     assert -0.211 == pytest.approx(scanarea.ref_delta.dy, rel=1e-3)  # offset dy
 
@@ -186,7 +186,7 @@ def test_max_perf_edges(sam):
     perfloc = PerforationLocation(top_edge=0.4, bottom_edge=0.6, inner_edge=0.2, outer_edge=0.1)
     refdelta = OffsetPoint(dx=0.1, dy=-0.2)
     size = Size(width=0.6, height=0.4)
-    scanarea = ScanArea(ref=perfloc, ref_delta=refdelta, size=size)
+    scanarea = ScanArea(perf_ref=perfloc, ref_delta=refdelta, size=size)
 
     edges = ScanAreaManager._max_perf_edges(scanarea)
 
@@ -236,11 +236,11 @@ def debug_show_image(sam: ScanAreaManager) -> None:
 
     scanarea = sam.scanarea
 
-    perf_line = round(scanarea.ref.inner_edge * img_w)
-    perf_top = round(scanarea.ref.top_edge * img_h)
-    perf_bot = round(scanarea.ref.bottom_edge * img_h)
-    ref_point_x = round(scanarea.ref.reference.x * img_w)
-    ref_point_y = round(scanarea.ref.reference.y * img_h)
+    perf_line = round(scanarea.perf_ref.inner_edge * img_w)
+    perf_top = round(scanarea.perf_ref.top_edge * img_h)
+    perf_bot = round(scanarea.perf_ref.bottom_edge * img_h)
+    ref_point_x = round(scanarea.perf_ref.reference.x * img_w)
+    ref_point_y = round(scanarea.perf_ref.reference.y * img_h)
     x = round(scanarea.rect.x * img_w)
     y = round(scanarea.rect.y * img_h)
     w = round(scanarea.rect.width * img_w)

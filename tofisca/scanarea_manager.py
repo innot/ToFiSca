@@ -260,7 +260,7 @@ class ScanAreaManager:
         # How much of the image the frame occupies
         frame_to_perf = self._specs[FSKeys.FILM_FRAME_SIZE][1] / self._specs[FSKeys.PERFORATION_SIZE][1]
         frame_height = self._reference_perfloc.height * frame_to_perf
-        centerline = self._scanarea.ref.center.y  # center of perforation relative to image
+        centerline = self._scanarea.perf_ref.center.y  # center of perforation relative to image
 
         # delta is negative if centerline is above mid-image (shorter frame advance required)
         # delta is positive if centerline is below mid-image (longer frame advance required)
@@ -355,7 +355,7 @@ class ScanAreaManager:
                     result = scanarea
                     result_delta = delta
 
-        self._reference_perfloc = result.ref
+        self._reference_perfloc = result.perf_ref
         self._scanarea = result
 
     async def manualdetect(self, image: np.ndarray, start_point: Point) -> None:
@@ -386,7 +386,7 @@ class ScanAreaManager:
         else:
             # Scanarea has already been set up: set the new reference point
             scanarea = self._scanarea
-            scanarea.ref = perf_loc
+            scanarea.perf_ref = perf_loc
 
         self._reference_perfloc = perf_loc
         self._scanarea = scanarea
@@ -415,11 +415,11 @@ class ScanAreaManager:
         img_h, img_w, _ = image.shape
 
         # first, try finding the perforation starting at the center of the previous perforation hole
-        perf_loc = await self._find_perforation_from_point(self._scanarea.ref.center)
+        perf_loc = await self._find_perforation_from_point(self._scanarea.perf_ref.center)
         if perf_loc is None:
             # not found: try looking somewhere up or down the image (but on the same vertical axis)
             try:
-                perf_loc = await self._find_perforation_from_line(self._scanarea.ref.center.x)
+                perf_loc = await self._find_perforation_from_line(self._scanarea.perf_ref.center.x)
             except PerforationNotFoundException as exc:
                 # No perforation edges found. Maybe we ran out of film
                 if self._is_blank():
@@ -429,7 +429,7 @@ class ScanAreaManager:
 
         # We now have a well-behaved perforation hole.
         # Store it as a reference for the next image
-        self._scanarea.ref = perf_loc
+        self._scanarea.perf_ref = perf_loc
 
         return self._scanarea.rect
 
@@ -642,15 +642,15 @@ class ScanAreaManager:
         ref_loc = self._reference_perfloc
         ref_height = ref_loc.height
         ref_width = ref_loc.width
-        last_inner = self._scanarea.ref.inner_edge
+        last_inner = self._scanarea.perf_ref.inner_edge
 
         # now check that the hole height is in limits (2% of reference size)
         height = perfloc.bottom_edge - perfloc.top_edge
         epsilon = ref_height * 0.02
         if abs(height - ref_height) > epsilon:
             # It is not. Check if either top or bottom edge is within 2% of the last value
-            top_offset = perfloc.top_edge - self._scanarea.ref.top_edge
-            bot_offset = perfloc.bottom_edge - self._scanarea.ref.bottom_edge
+            top_offset = perfloc.top_edge - self._scanarea.perf_ref.top_edge
+            bot_offset = perfloc.bottom_edge - self._scanarea.perf_ref.bottom_edge
             if abs(top_offset) < epsilon:
                 # top is good, use it to define bottom
                 perfloc.bottom_edge = perfloc.top_edge + ref_height
@@ -794,7 +794,7 @@ class ScanAreaManager:
         cam_w, cam_h = self._specs[FSKeys.CAMERA_FRAME_SIZE]
         size = Size(width=cam_w * scale_h, height=cam_h * scale_v)
 
-        return ScanArea(ref=perfloc, ref_delta=delta_ref, size=size)
+        return ScanArea(perf_ref=perfloc, ref_delta=delta_ref, size=size)
 
     async def _is_blank(self) -> bool:
         """Checks if the given image is blank, i.e. if it has a uniform color"""
@@ -823,7 +823,7 @@ class ScanAreaManager:
 
         None of the returned edges are less than zero or more than 1 (outside of image)
         """
-        perf_height = scanarea.ref.bottom_edge - scanarea.ref.top_edge
+        perf_height = scanarea.perf_ref.bottom_edge - scanarea.perf_ref.top_edge
 
         upmost_ref_point_y = -scanarea.ref_delta.dy
         top = clamp(upmost_ref_point_y - perf_height / 2, 0.0, 1.0)

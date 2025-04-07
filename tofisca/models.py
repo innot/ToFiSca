@@ -101,7 +101,7 @@ class PerforationLocation(ConfigItem):
 
 
 class ScanArea(ConfigItem):
-    ref: PerforationLocation = Field(default=None, description="The reference this ScanArea is based on.")
+    perf_ref: PerforationLocation = Field(default=None, description="The reference this ScanArea is based on.")
     ref_delta: OffsetPoint = Field(default=None, description="delta from reference point to top left")
     size: Size = Field(default=None, description="width of the scan area")
 
@@ -110,8 +110,8 @@ class ScanArea(ConfigItem):
         """
         Convert the ScanArea to a Rect relative to the complete image
         """
-        x = self.ref.reference.x + self.ref_delta.dx
-        y = self.ref.reference.y + self.ref_delta.dy
+        x = self.perf_ref.reference.x + self.ref_delta.dx
+        y = self.perf_ref.reference.y + self.ref_delta.dy
         width = self.size.width
         height = self.size.height
         return Rect(x=x, y=y, width=width, height=height)
@@ -121,9 +121,9 @@ class ScanArea(ConfigItem):
         """
         Get the top/bottom/left/right edges of the scanarea relative to the complete image
         """
-        top = self.ref.reference.y + self.ref_delta.dy
+        top = self.perf_ref.reference.y + self.ref_delta.dy
         bottom = top + self.size.height
-        left = self.ref.reference.x + self.ref_delta.dx
+        left = self.perf_ref.reference.x + self.ref_delta.dx
         right = left + self.size.width
         return RectEdges(top=top, bottom=bottom, left=left, right=right)
 

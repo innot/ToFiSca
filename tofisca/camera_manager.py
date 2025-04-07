@@ -1,112 +1,71 @@
-from typing import Tuple
-
 import cv2 as cv
+from pydantic import Field
 
-from film_generator import TestFrameGenerator
+from app import App
+from config_item import ConfigItem
+from database import Scope
+from models import Size
 
 try:
-    from mock_picamera2 import Picamera2
+    from picamera2 import Picamera2
 except ImportError:
-    from mockpicamera import Picamera2
+    from tests.mock_picamera2 import MockPiCamera2 as Picamera2
 
-class CameraConfig:
 
-    camera_resolution = (640, 480)
+class CameraConfig(ConfigItem):
+    aspect_ration: float = Field(default=(4056 / 3040), description="The aspect ratio of the camera.")
+    preview_resolution: Size = Field(default=Size(width=2028, height=1520),
+                                     description="The resolution used for preview images in the frontend")
+    stream_resolution: Size = Field(default=Size(width=1024, height=768),
+                                    description="The resolution used for streaming images to the frontend")
+    scan_resolution: Size = Field(default=Size(width=4056, height=3040),
+                                  description="The resolution used for scanning images")
 
 
 class CameraManager:
-    def __init__(self, revision: str = 'imx477'):
+    def __init__(self, app: App, pid: int) -> None:
+
+        self.app = app
+        self.pid = pid
 
         self._picamera = Picamera2()
+        self._cam_started: bool = False
 
-        self._sensor_mode = 0
-        self._still_image_size = DEFAULT_RESOLUTION
-        self._video_image_size = DEFAULT_RESOLUTION
-        self._stream_output = None
+        self._config = CameraConfig()
 
-        # if !raspi:
-        self._picamera.revision = revision
+        self._preview_config: dict = self._picamera.create_still_configuration()
+        self._stream_config: dict = self._picamera.create_video_configuration()
+        self._scan_config: dict = self._picamera.create_still_configuration()
 
-        # defaults, can be changed by :attr:'still_image_size' and :attr:'still_video_size'
-        self._still_image_size = self._picamera.MAX_RESOLUTION
-        self._video_image_size = (x / 4 for x in self._picamera.MAX_RESOLUTION)
-
-        self._camera_type = self._picamera.revision
-        self._camera_modes = self._picamera.sensor_modes
-
-        # for debugging: current frame namuber
-        self._frame_count: int = 0
-        self.tfg = TestFrameGenerator()
-
-
+    async def load(self):
+        await self._config.retrieve(self.app.config_database, self.pid)
 
     @property
-    def camera_type(self) -> str:
-        return self._camera_type
+    def config(self) -> CameraConfig:
+        return self._config.model_copy()
 
-    @camera_type.setter
-    def camera_type(self, camtype: CamType) -> None:
-        self._camera_type = camtype.value
+    async def set_config(self, new_config: CameraConfig, as_default: bool = False):
+        self._config = new_config
+        if as_default:
+            await self._config.store(self.app.config_database, Scope.GLOBAL)
+        else:
+            await self._config.store(self.app.config_database, self.pid)
 
-    @property
-    def resolutions(self):
-        """
-        List of width/height-tuples nativly supported by the camera.
-        Read only property.
-        """
-        modes = self._picamera.sensor_modes
-        values = []
-        for mode in modes.values():
-            # only use modes that are usable for still images.
-            if mode.still:
-                res = mode.resolution
-                values.append(res)
-        return values
+        # todo: update the configurations
 
-    @property
-    def still_imagesize(self):
-        """
-        The size of the still image captures.
-        Setting the size to a value not returned by :attr:resolutions is possible. In this case the camera
-        hardware will select an appropriate mode and scale the picture.
-        :
-        """
-        return self._still_image_size
+    def get_preview_image(self):
 
-    @still_imagesize.setter
-    def still_imagesize(self, new_size: Tuple):
-        self._sensor_mode = 0
-        modes = self._picamera.sensor_modes
-        for idx, mode in modes:
-            if new_size == mode.resolution:
-                self._sensor_mode = idx
-                self._still_image_size = new_size
-                return
-        raise ValueError(f"Invalid still image ")
+        # todo: should the camera be started at initialization?
+        # how much processing does it take if the camera is running continously
+        if not self._cam_started:
+            self._picamera.start()
+            self._cam_started = True
 
-    @staticmethod
-    def get_cam_types(self) -> list:
-        return list(CamType)
+        config = self._preview_config
 
-    def get_png_image(self, width: int = None):
-        img = self.get_image(width)
-        retval, buffer = cv.imencode('.png', img)
-        return buffer
+        array = self._picamera.switch_mode_and_capture_array(config)
 
-    def get_image(self, param: dict = None, debug: bool = False):
-        if not param:
-            param = {'width': 2028, 'height': 1520}
-
-        self.tfg.image_size = (param['width'], param['height'])
-        img = self.tfg.render_image()
-        if debug:
-            h, w, _ = img.shape
-            x_offset = int(w / 2)
-            font = cv.FONT_HERSHEY_SIMPLEX
-            cv.putText(img, f"{self._frame_count}", (x_offset, 50), font, 2, (0, 255, 0), 2, cv.LINE_AA)
-            cv.putText(img, f"{w}x{h}", (x_offset, 100), font, 2, (0, 255, 0), 2, cv.LINE_AA)
-            self._frame_count += 1
-        return img
+        return array
 
     def start_streaming(self, output, size: tuple = (640, 480)):
         print("Camera_manager: start streaming")
