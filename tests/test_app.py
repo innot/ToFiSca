@@ -20,12 +20,12 @@ from asyncio import Event
 import pytest
 
 from app import App
-from configuration.database import ConfigDatabase
 from hardware_manager import HardwareManager
 from project_manager import ProjectManager
+from configuration.database import ConfigDatabase
 
 
-class TestApp(App):
+class FoobarApp(App):   # cannot name it TestApp as then pytest thinks it is a class containing tests
 
     def __init__(self):
         super().__init__()
@@ -33,21 +33,21 @@ class TestApp(App):
 
 @pytest.fixture
 def test_app():
-    return TestApp()
+    return FoobarApp()
 
 
 def test_instance():
 
     with pytest.raises(RuntimeError):
-        TestApp.instance()
+        FoobarApp.instance()
 
-    app = TestApp()
+    app = FoobarApp()
     assert app is not None
-    assert TestApp.instance() is app
+    assert FoobarApp.instance() is app
 
-    TestApp._delete_instance()
+    FoobarApp._delete_instance()
     with pytest.raises(RuntimeError):
-        TestApp.instance()
+        FoobarApp.instance()
 
 
 

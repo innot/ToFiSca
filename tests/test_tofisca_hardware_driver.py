@@ -22,7 +22,7 @@ import pytest
 try:
     import lgpio
 
-    from hardware.tofisca_hardware_driver import TofiscaHardwareDriver
+    from tofisca_hardware_driver import TofiscaHardwareDriver
 
 
     @pytest.fixture

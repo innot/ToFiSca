@@ -24,10 +24,10 @@ from async_asgi_testclient import TestClient
 from configuration.config_item import ConfigItem
 from main import MainApp
 from web_ui.server import webui_app, set_app, get_app
-from websocket_api import WebSocketHandler, WebSocketManager
+from web_ui.websocket_api import WebSocketHandler, WebSocketManager
 
 
-class TestItem(ConfigItem):
+class SampleItem(ConfigItem):
     data1: str = "test"
     data2: int = 1234
 
@@ -56,14 +56,14 @@ async def test_queue_manager(client):
 
     assert len(wsm._send_handlers) == 2
 
-    item = TestItem()
+    item = SampleItem()
     wsm.send_item(item)
 
     results = await asyncio.wait_for(handler1.next_item_json(), timeout=1)
-    assert "testitem" in results
+    assert "sampleitem" in results
 
     results = await asyncio.wait_for(handler2.next_item_json(), timeout=1)
-    assert "testitem" in results
+    assert "sampleitem" in results
 
     handler1.close()
     assert len(wsm._send_handlers) == 1
@@ -81,14 +81,14 @@ async def test_queue_manager(client):
 
 @pytest.mark.asyncio
 async def test_websocket(client) -> None:
-    ti = TestItem()
+    ti = SampleItem()
 
     wsm = WebSocketManager.get_manager()  # get the WebSocketManager from the server
 
     async with client.websocket_connect("/ws/upsync") as websocket:
         wsm.send_item(ti)
         result = await asyncio.wait_for(websocket.receive_json(), timeout=1)
-        assert "testitem" in result
+        assert "sampleitem" in result
 
     # check that disconnect is handled correctly
     await asyncio.sleep(0.1)  # give the server time to handle the disconnect

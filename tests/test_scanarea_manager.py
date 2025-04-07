@@ -2,8 +2,8 @@ import cv2 as cv
 import numpy as np
 import pytest
 
-import film_generator as film_generator
 from configuration.database import ConfigDatabase, Scope
+from film_generator import FilmFrameGenerator
 from film_specs import FilmSpecKey
 from models import PerforationLocation, OffsetPoint, Size, ScanArea, Point
 from scanarea_manager import ScanAreaManager, ScanAreaOutOfImageException, PerforationNotFoundException
@@ -24,7 +24,7 @@ def sam():
 @pytest.fixture(scope="function")
 def tfg():
     """TestFrameGenerator"""
-    tfg = film_generator.TestFrameGenerator(width=1024, height=768)
+    tfg = FilmFrameGenerator(width=1024, height=768)
     return tfg
 
 

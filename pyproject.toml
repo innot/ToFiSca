@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "ToFiSca"
 version = "0.1.dev0"
@@ -66,6 +70,8 @@ hatchling = "^1.27.0"
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
+pythonpath = "src/tofisca tests"
+testpaths = "tests"
 
 [tool.coverage.run]
 omit = [
@@ -73,6 +79,3 @@ omit = [
     "config-3.py",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"

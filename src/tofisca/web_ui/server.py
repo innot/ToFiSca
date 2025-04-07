@@ -25,12 +25,12 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
-from api_errors import APIProjectDoesNotExist, APIInvalidDataError, APIProjectAlreadyExists
 from app import App
 from errors import ProjectDoesNotExistError, ProjectAlreadyExistsError
-from global_api import router as global_api_router
-from project_api import router as project_api_router
-from websocket_api import router as websocket_router
+from web_ui.api_errors import APIProjectDoesNotExist, APIInvalidDataError, APIProjectAlreadyExists
+from web_ui.global_api import router as global_api_router
+from web_ui.project_api import router as project_api_router
+from web_ui.websocket_api import router as websocket_router
 
 logger = logging.getLogger(__name__)
 

@@ -17,10 +17,10 @@
 #
 from fastapi import APIRouter, HTTPException
 
-from api_errors import APINoActiveProject, APIProjectDoesNotExist, APIInvalidDataError
 from project_manager import ProjectManager
-from tofisca.film_specs import FilmFormat, FilmSpecs
-from tofisca.web_ui import Tags
+from film_specs import FilmFormat, FilmSpecs
+from web_ui import Tags
+from web_ui.api_errors import APINoActiveProject, APIProjectDoesNotExist, APIInvalidDataError
 
 router = APIRouter()
 

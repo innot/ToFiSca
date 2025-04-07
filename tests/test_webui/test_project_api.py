@@ -20,9 +20,9 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
-from api_errors import APIInvalidDataError
 from main import MainApp
 from web_ui.server import webui_app, set_app, get_app
+from web_ui.api_errors import APIInvalidDataError
 
 
 @pytest.fixture(scope="session")

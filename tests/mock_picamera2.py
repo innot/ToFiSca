@@ -35,7 +35,7 @@ from poetry.console.commands import self
 #  along with ToFiSca.  If not, see <http://www.gnu.org/licenses/>.
 #
 #
-from film_generator import TestFrameGenerator
+from film_generator import FilmFrameGenerator
 
 
 class MockPiCamera2:
@@ -46,7 +46,7 @@ class MockPiCamera2:
 
     def __init__(self, camera: str = None):
         self._frame_count: int = 0
-        self.tfg = TestFrameGenerator()
+        self.tfg = FilmFrameGenerator()
 
         self.camera = camera
         self.camera_config: dict | None= None

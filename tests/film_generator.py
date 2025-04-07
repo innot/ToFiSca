@@ -21,7 +21,7 @@ import cv2 as cv
 import numpy as np
 from numpy import ndarray
 
-from tofisca.film_specs import FilmSpecKey, FilmSpecs, FSKeys
+from film_specs import FilmSpecKey, FilmSpecs, FSKeys
 
 
 def round_rect(ctx: cairo.Context, x: float, y: float, width: float, height: float, radius: float):
@@ -32,9 +32,9 @@ def round_rect(ctx: cairo.Context, x: float, y: float, width: float, height: flo
     ctx.close_path()
 
 
-class TestFrameGenerator:
+class FilmFrameGenerator:
     """
-    TestFrameGenerator is used for generating controlled sample images to test the ToFiSca functionallity.
+    FilmFrameGenerator is used for generating controlled sample images to test the ToFiSca functionallity.
 
     It basically simulates the output of PiCamera, but can run without PiCamera and in a development
     environment other than on a Raspberry Pi.
@@ -594,7 +594,7 @@ class TestFrameGenerator:
 
 
 if __name__ == "__main__":
-    tfg = TestFrameGenerator(FilmSpecKey.SUPER8, 1024, 760)
+    tfg = FilmFrameGenerator(FilmSpecKey.SUPER8, 1024, 760)
     # tfg.field_of_view = 12
     # tfg.rotation = 0.0
     # tfg.left_offset = 2

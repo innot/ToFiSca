@@ -18,8 +18,8 @@
 
 import pytest
 
-from configuration.config_item import ConfigItem, FieldChangedObserverMixin, NamedProjectItem, ProjectItem
 from configuration.database import ConfigDatabase, Scope
+from configuration.config_item import ConfigItem, FieldChangedObserverMixin, NamedProjectItem, ProjectItem
 
 
 @pytest.fixture
@@ -112,5 +112,5 @@ def test_named_project_item(database):
     class TestItem(NamedProjectItem):
         pass
 
-    item = TestItem(name="the_name")
+    item = TestItem(name="the_name", pid=-1)
     assert item.get_qualified_name() == "testitem.the_name"

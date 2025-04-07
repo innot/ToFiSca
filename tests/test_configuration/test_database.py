@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Engine
 
-from tofisca.configuration.database import ConfigDatabase, Scope, Project, Setting
+from configuration.database import ConfigDatabase, Scope, Project, Setting
 
 
 @pytest.fixture
@@ -106,9 +106,12 @@ async def test_create_project(test_db):
     assert str(pid3) in project.name
 
     # test invalid input
-    for arg in ["test", "test2", [], object()]:
-        with pytest.raises((ValueError, TypeError)):
-            print(f"{arg} = {arg!r}")
+    for arg in ["test", "test2"]:
+        with pytest.raises(ValueError):
+            await test_db.create_project(arg)
+
+    for arg in [[], object()]:
+        with pytest.raises(TypeError):
             await test_db.create_project(arg)
 
 

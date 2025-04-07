@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import enum
+import logging
 import sqlite3
 import threading
 from pathlib import Path
@@ -105,12 +106,12 @@ class ConfigDatabase:
 
     def __del__(self) -> None:
         try:
-            self.Session.remove()
-            self.connection.close()
-        except AttributeError:
-            # This happens if there is an Exception in __init__ and the session is not created.
-            # Or there is no connection set (only exists when using a memory database)
-            pass
+            if hasattr(self, "connection"):
+                self.connection.close()
+            if hasattr(self, "session"):
+                self.Session.remove()
+        except BaseException as e:
+            logging.warn(f"Excpetion in ComfogDatabase.__del__: {str(e)}")
 
     async def retrieve_setting(self, key: str, scope: int | str | Scope = Scope.GLOBAL) -> str | None:
         """

@@ -19,9 +19,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api_errors import APINoActiveProject, APIProjectDoesNotExist, APIInvalidDataError
 from main import MainApp
 from web_ui.server import webui_app, set_app, get_app
+from web_ui.api_errors import APINoActiveProject, APIProjectDoesNotExist, APIInvalidDataError
 
 
 @pytest.fixture

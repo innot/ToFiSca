@@ -25,7 +25,7 @@ from typing import Self, Any, NewType
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from .database import ConfigDatabase, Scope
+from configuration.database import ConfigDatabase, Scope
 
 
 class DataNotFoundError(Exception):
@@ -83,10 +83,10 @@ class FieldChangedObserverMixin:
             old_value = None
         super().__setattr__(name, new_value)
 
-        if hasattr(self, "model_fields"):
+        if isinstance(self,ConfigItem):
             # todo: what to do if the is not the case? check with pydantic v3 where this is supposed to change.
-            # for now there will be now observers called if this mixin is not mixed to a pydantic BaseModel.
-            if name in self.model_fields:
+            # for now there will be no observers called if this mixin is not mixed to a pydantic BaseModel.
+            if name in self.__class__.model_fields:
                 if old_value != new_value:
                     for observer in self._observers:
                         task = asyncio.create_task(observer(self, name, old_value, new_value))

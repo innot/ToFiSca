@@ -249,7 +249,7 @@ class Project:
 
         # update the database
         self._paths[old_path_entry.name].path = new_path_entry.path
-        self._paths[old_path_entry.name].resolved = new_path_resolved
+        self._paths[old_path_entry.name].resolved = str(new_path_resolved)
         await self._paths[old_path_entry.name].store(self.db, self._pid)
         return self._paths[old_path_entry.name].model_copy()
 

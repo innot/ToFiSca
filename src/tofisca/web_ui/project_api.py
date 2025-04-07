@@ -18,11 +18,11 @@
 
 from fastapi import APIRouter, status, HTTPException
 
-from api_errors import APINoActiveProject, APIProjectAlreadyExists, APIInvalidDataError, APIObjectNotFoundError
 from errors import ProjectAlreadyExistsError
 from models import PerforationLocation, Point, ScanArea
 from project import Project, ProjectPathEntry, FilmData, ProjectState
 from web_ui import Tags
+from web_ui.api_errors import APINoActiveProject, APIProjectAlreadyExists, APIInvalidDataError, APIObjectNotFoundError
 
 
 async def get_active_project() -> Project:
