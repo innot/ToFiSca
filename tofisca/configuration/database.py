@@ -101,7 +101,7 @@ class ConfigDatabase:
         session_factory = sessionmaker(bind=self.db_engine)
         self.Session = scoped_session(session_factory)
 
-        self._db_write_lock = threading.Lock()
+        self._db_access_lock = threading.Lock()
 
     def __del__(self) -> None:
         try:
@@ -144,13 +144,14 @@ class ConfigDatabase:
         :raises: ValueError if the project or scope does not exist.
         """
         real_scope, project_id = await self.get_scope(scope)
-        session = self.Session()
 
         stmt = Select(Setting).where(Setting.key == key).where(Setting.scope <= real_scope)
         if project_id is not None:
             stmt = stmt.where(Setting.project_id == project_id)
         stmt = stmt.order_by(Setting.scope.desc())
-        setting = session.scalars(stmt).first()  # the first entry has the lowest hierarchy
+        with self._db_access_lock:
+            session = self.Session()
+            setting = session.scalars(stmt).first()  # the first entry has the lowest hierarchy
         return setting
 
     async def store_setting(self, key: str, value: str | None, scope: str | int | Scope = Scope.GLOBAL) -> Setting:
@@ -181,7 +182,7 @@ class ConfigDatabase:
             setting.value = value
 
         # update and commit
-        with self._db_write_lock:  # just in case...
+        with self._db_access_lock:  # just in case...
             session = self.Session()
             session.add(setting)
             session.commit()
@@ -215,8 +216,9 @@ class ConfigDatabase:
         else:
             raise ValueError(f"'{project}' is not a valid name or id for a project")
 
-        session = self.Session()
-        project = session.scalars(stmt).first()
+        with self._db_access_lock:
+            session = self.Session()
+            project = session.scalars(stmt).first()
         return project
 
     async def create_project(self, name: str | None = None) -> int:
@@ -239,12 +241,13 @@ class ConfigDatabase:
             name = ""  # Placeholder to be replaced by project id
 
         # create a new project
-        session = self.Session()
         project = Project(name=name)
-        with self._db_write_lock:  # just in case...
+        with self._db_access_lock:  # just in case...
+            session = self.Session()
             session.add(project)
             session.commit()
 
+            # set the default project name here, as we now have an project id number
             if project.name == "":
                 project.name = f"Project {project.id}"
                 session.commit()
@@ -258,11 +261,11 @@ class ConfigDatabase:
         :param pid: The pid of the project to delete.
         :return: The pid of the deleted project or `None` if the project did not exist
         """
-        session = self.Session()
-        project = session.get(Project, pid)
-        if project is None:
-            return None
-        with self._db_write_lock:  # just in case...
+        with self._db_access_lock:  # just in case...
+            session = self.Session()
+            project = session.get(Project, pid)
+            if project is None:
+                return None
             session.delete(project)
             session.commit()
         return pid
@@ -272,8 +275,9 @@ class ConfigDatabase:
         Returns the id's and names of all Projects stored in the database.
         :returns: a dict mapping project id to the project name.
         """
-        session = self.Session()
-        proj_list = session.scalars(select(Project).order_by(Project.id)).all()
+        with self._db_access_lock:  # just in case...
+            session = self.Session()
+            proj_list = session.scalars(select(Project).order_by(Project.id)).all()
 
         result: dict[int, str] = {}
         for proj in proj_list:
@@ -283,7 +287,7 @@ class ConfigDatabase:
 
     async def change_project_name(self, project_id: int, new_name: str) -> None:
 
-        with self._db_write_lock:  # just in case...
+        with self._db_access_lock:  # just in case...
             session = self.Session()
             project = session.scalars(select(Project).where(Project.id == project_id)).first()
             project.name = new_name
@@ -314,5 +318,6 @@ class ConfigDatabase:
         return real_scope, project_id
 
     async def is_valid_project_id(self, pid: int) -> bool:
-        session = self.Session()
-        return session.query(Project.id).filter_by(id=pid).first() is not None
+        with self._db_access_lock:  # just in case...
+            session = self.Session()
+            return session.query(Project.id).filter_by(id=pid).first() is not None
