@@ -1,7 +1,3 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "ToFiSca"
 version = "0.1.dev0"
@@ -11,23 +7,6 @@ authors = [
 description = "Film Scanning Application"
 readme = "README.rst"
 requires-python = "~=3.11"
-
-dependencies = [
-    "ArgParseDecorator~=1.4.0",
-    "fastapi~=0.115.0",
-    "uvicorn~=0.34.0",
-    "pydantic~=2.10",
-    "SQLAlchemy~=2.0",
-    "asyncssh~=2.9.0",
-    "numpy~=2.2.1",
-    "opencv-contrib-python-headless~=4.10.0.84",
-    "pillow~=11.1.0",
-    "platformdirs~=4.3.6",
-    "lgpio~=0.2.2.0; sys_platform == 'linux'",
-    "picamera2~=0.3.25; sys_platform == 'linux'",
-    "piexif~=1.1.3",
-    "poetry~=2.1.2"
-]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -51,16 +30,49 @@ classifiers = [
 license = "GPL-3.0-or-later"
 license-files = ["LICEN[CS]E*"]
 
+dependencies = [
+    "argparsedecorator (>=1.4.0,<1.5.0)",
+    "fastapi~=0.115.0",
+    "uvicorn~=0.34.0",
+    "pydantic~=2.10",
+    "SQLAlchemy~=2.0",
+    "asyncssh~=2.9.0",
+    "numpy~=2.2.1",
+    "opencv-contrib-python-headless~=4.10.0.84",
+    "pillow~=11.1.0",
+    "platformdirs~=4.3.6",
+    "lgpio~=0.2.2.0; sys_platform == 'linux'",
+    "picamera2~=0.3.25; sys_platform == 'linux'",
+    "piexif~=1.1.3",
+    "poetry~=2.1.2"
+]
+
+
 [project.urls]
 Homepage = "https://github.com/innot/tofisca"
 Issues = "https://github.com/innot/tofisca/issues"
 
+
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.5"
 pytest-asyncio = "^0.26.0"
+async-asgi-testclient = "^1.4.11"
 httpx = "^0.28.1"
 pycairo = "^1.27.0"
 opencv-python = "^4.11.0"
 
+[tool.poetry.group.build.dependencies]
+hatchling = "^1.27.0"
+
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
+
+[tool.coverage.run]
+omit = [
+    "config.py",
+    "config-3.py",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

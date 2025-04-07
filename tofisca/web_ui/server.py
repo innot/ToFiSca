@@ -28,8 +28,9 @@ from starlette.responses import JSONResponse
 from api_errors import APIProjectDoesNotExist, APIInvalidDataError, APIProjectAlreadyExists
 from app import App
 from errors import ProjectDoesNotExistError, ProjectAlreadyExistsError
-from .global_api import router as global_api_router
-from .project_api import router as project_api_router
+from global_api import router as global_api_router
+from project_api import router as project_api_router
+from websocket_api import router as websocket_router
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +56,8 @@ webui_app = FastAPI()
 webui_app.include_router(global_api_router)
 webui_app.include_router(project_api_router)
 
+webui_app.include_router(websocket_router)
 
-# webui_app.include_router(websocket_router)
 
 @webui_app.exception_handler(HTTPException)
 async def http_exception_handler(_, exc: HTTPException):

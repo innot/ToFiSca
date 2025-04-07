@@ -16,15 +16,20 @@
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
 import asyncio
+import logging
 
 
 class Event_ts(asyncio.Event):
-    # TODO: clear() method
+
     def set(self):
-        # FIXME: The _loop attribute is not documented as public api!
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         loop.call_soon_threadsafe(super().set)
 
     def clear(self):
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         loop.call_soon_threadsafe(super().clear)
+
+    async def wait(self):
+        loop = asyncio.get_event_loop()
+        logging.info(f"Event_ts wait: {id(loop)}")
+        await super().wait()

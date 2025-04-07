@@ -20,6 +20,7 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 
+from api_errors import APIInvalidDataError
 from main import MainApp
 from web_ui.server import webui_app, set_app, get_app
 
@@ -53,6 +54,7 @@ async def test_no_project(client) -> None:
     response = client.get("/api/project/name")
     assert response.status_code == 404
 
+
 @pytest.mark.asyncio
 async def test_project_id(client, project) -> None:
     response = client.get("/api/project/id")
@@ -60,6 +62,7 @@ async def test_project_id(client, project) -> None:
     pid = response.json()
     assert isinstance(pid, int)
     assert pid == project.pid
+
 
 @pytest.mark.asyncio
 async def test_project_name(client, project) -> None:
@@ -78,13 +81,6 @@ async def test_project_name(client, project) -> None:
 
     # test invalid name
     response = client.put("/api/project/name?name='new:name'")
-    assert response.status_code == 400
+    assert response.status_code == APIInvalidDataError.status_code
 
     # test duplicate name
-    app = get_app()
-
-    project = await app.project_manager.new_project("TestProject2")
-
-    yield project
-
-    await app.project_manager.delete_project(project.pid)
