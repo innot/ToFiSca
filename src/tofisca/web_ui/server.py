@@ -22,12 +22,14 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 from app import App
 from errors import ProjectDoesNotExistError, ProjectAlreadyExistsError
 from web_ui.api_errors import APIProjectDoesNotExist, APIInvalidDataError, APIProjectAlreadyExists
+from web_ui.camera_api import router as camera_api_router
 from web_ui.global_api import router as global_api_router
 from web_ui.project_api import router as project_api_router
 from web_ui.websocket_api import router as websocket_router
@@ -55,9 +57,16 @@ webui_app = FastAPI()
 
 webui_app.include_router(global_api_router)
 webui_app.include_router(project_api_router)
-
+webui_app.include_router(camera_api_router)
 webui_app.include_router(websocket_router)
 
+webui_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @webui_app.exception_handler(HTTPException)
 async def http_exception_handler(_, exc: HTTPException):

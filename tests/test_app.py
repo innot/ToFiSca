@@ -20,12 +20,13 @@ from asyncio import Event
 import pytest
 
 from app import App
+from camera_manager import CameraManager
+from configuration.database import ConfigDatabase
 from hardware_manager import HardwareManager
 from project_manager import ProjectManager
-from configuration.database import ConfigDatabase
 
 
-class FoobarApp(App):   # cannot name it TestApp as then pytest thinks it is a class containing tests
+class FoobarApp(App):  # cannot name it TestApp as then pytest thinks it is a class containing tests
 
     def __init__(self):
         super().__init__()
@@ -37,7 +38,6 @@ def test_app():
 
 
 def test_instance():
-
     with pytest.raises(RuntimeError):
         FoobarApp.instance()
 
@@ -50,22 +50,20 @@ def test_instance():
         FoobarApp.instance()
 
 
-
-
 def test_config_database(test_app):
     db = ConfigDatabase("memory")
     test_app._config_database = db
     assert test_app.config_database is db
 
 
-def test_storage_path(tmp_path,test_app):
+def test_storage_path(tmp_path, test_app):
     test_app._storage_path = tmp_path
     assert test_app.storage_path is tmp_path
 
 
 def test_project_manager(test_app, tmp_path):
     test_app._storage_path = tmp_path  # projectmanager needs a storage path
-    test_app._config_database = ConfigDatabase("memory")    # and a database
+    test_app._config_database = ConfigDatabase("memory")  # and a database
     pm = ProjectManager(test_app)
     test_app._project_manager = pm
     assert test_app.project_manager is pm
@@ -76,6 +74,11 @@ def test_hardware_manager(test_app):
     test_app._hardware_manager = hm
     assert test_app.hardware_manager is hm
 
+
+def test_camera_manager(test_app):
+    cm = CameraManager(test_app)
+    test_app._camera_manager = cm
+    assert test_app.camera_manager is cm
 
 def test_shutdown_event(test_app):
     ev = Event()

@@ -22,6 +22,7 @@ import pytest
 
 from pathlib import Path
 
+from camera_manager import CameraManager
 from configuration.database import ConfigDatabase
 from hardware_manager import HardwareManager
 from main import MainApp
@@ -31,21 +32,20 @@ from project_manager import ProjectManager
 def app(tmp_path):
     app = MainApp(data_storage_path=tmp_path, database_file="memory")
     yield app
-    MainApp._delete_singleton()
+    MainApp._delete_instance()
 
-def test_app_init(tmp_path: Path):
-    app = MainApp(data_storage_path=tmp_path, database_file="memory")
+def test_app_init(tmp_path: Path, app):
     assert isinstance(app.config_database, ConfigDatabase)
     assert isinstance(app.storage_path, Path)
     assert app.storage_path == tmp_path
 
     assert isinstance(app.project_manager, ProjectManager)
     assert isinstance(app.hardware_manager, HardwareManager)
+    assert isinstance(app.camera_manager, CameraManager)
     assert isinstance(app.shutdown_event, Event)
 
 @pytest.mark.asyncio
-async def test_shutdown(tmp_path: Path):
-    app = MainApp(data_storage_path=tmp_path, database_file="memory")
+async def test_shutdown(tmp_path: Path, app):
     main_task = asyncio.create_task(app.main())
     await asyncio.sleep(0.1)
     app.shutdown_event.set()

@@ -11,6 +11,7 @@ from app import App
 from configuration.database import ConfigDatabase
 from hardware_manager import HardwareManager
 from project_manager import ProjectManager
+from camera_manager import CameraManager
 from utils import Event_ts
 from web_ui.server import run_webui_server
 
@@ -44,7 +45,7 @@ class MainApp(App):
         self._project_manager = ProjectManager(self)
 
         # start the camera manager to allow acces to the camera
-        # CameraManager()
+        self._camera_manager = CameraManager(self)
 
         # start the hardware manager to set up the gpios
         self._hardware_manager = HardwareManager()

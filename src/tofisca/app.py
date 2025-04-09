@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .configuration.database import ConfigDatabase
     from .hardware_manager import HardwareManager
     from .project_manager import ProjectManager
+    from .camera_manager import CameraManager
 
 
 class App(ABC):
@@ -39,6 +40,7 @@ class App(ABC):
         self._storage_path: Path | None = None
         self._project_manager: ProjectManager | None = None
         self._hardware_manager: HardwareManager | None = None
+        self._camera_manager: CameraManager | None = None
         self._shutdown_event: Event | None = None
 
         App._instance = self
@@ -66,6 +68,12 @@ class App(ABC):
         if self._hardware_manager is None:
             raise RuntimeError("Hardware manager has not been initialized")
         return self._hardware_manager
+
+    @property
+    def camera_manager(self) -> CameraManager:
+        if self._camera_manager is None:
+            raise RuntimeError("Camera manager has not been initialized")
+        return self._camera_manager
 
     @property
     def shutdown_event(self) -> Event:

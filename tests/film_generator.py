@@ -110,6 +110,7 @@ class FilmFrameGenerator:
         width, height = size
         self._width_px = width
         self._height_px = height
+        self._pixel_per_mm = self._width_px / self._fov_mm
 
     @property
     def aspect_ratio(self) -> float:

@@ -36,6 +36,14 @@ class Size(BaseModel):
     height: float = Field(0, ge=0.0, le=1.0)
 
 
+class SizePixels(BaseModel):
+    width: int = Field(0, ge=0)
+    height: int = Field(0, ge=0)
+
+    def as_tupel(self) -> tuple[int, int]:
+        return self.width, self.height
+
+
 class Rect(BaseModel):
     """
     A Rectangle described by its top left point (x/y) and its size (widht/height).
