@@ -83,7 +83,7 @@ class FieldChangedObserverMixin:
             old_value = None
         super().__setattr__(name, new_value)
 
-        if isinstance(self,ConfigItem):
+        if isinstance(self, ConfigItem):
             # todo: what to do if the is not the case? check with pydantic v3 where this is supposed to change.
             # for now there will be no observers called if this mixin is not mixed to a pydantic BaseModel.
             if name in self.__class__.model_fields:
@@ -196,19 +196,16 @@ class ConfigItem(BaseModel):
 class ProjectItem(ConfigItem):
     """
     Extends ConfigItem to mark this item as a per-Project setting item.
-    Upon instantiation, this class needs a valid project id number which is used
-    to store and retrieve the item specifically for this project.
 
-    :param pid: The project id number. Must be valid, otherwise the store/retrieve methods will raise an Error.
+    This is mostly for semantics, but there is also a new method :meth:'store_global' to
+    explicitly store the item as a global default.
     """
 
-    pid: int = Field(-1, exclude=True)
-
     @override
-    async def store(self, database: ConfigDatabase, *args):
-        if not await database.is_valid_project_id(self.pid):
-            return ValueError(f"{self._pid} is not a valid project id.")
-        await super(ProjectItem, self).store(database, scope=self.pid)
+    async def store(self, database: ConfigDatabase, pid: int) -> None:
+        if not await database.is_valid_project_id(pid):
+            raise ValueError(f"{self._pid} is not a valid project id.")
+        await super(ProjectItem, self).store(database, scope=pid)
 
     async def store_global(self, database: ConfigDatabase):
         """
@@ -217,8 +214,9 @@ class ProjectItem(ConfigItem):
         await super(ProjectItem, self).store(database, scope=Scope.GLOBAL)
 
     @override
-    async def retrieve(self, database: ConfigDatabase, *args) -> Self:
-        return await super(ProjectItem, self).retrieve(database, scope=self.pid)
+    async def retrieve(self, database: ConfigDatabase, pid: int) -> Self:
+        return await super(ProjectItem, self).retrieve(database, scope=pid)
+
 
 class NamedProjectItem(ProjectItem):
     """
@@ -228,7 +226,7 @@ class NamedProjectItem(ProjectItem):
 
     This can be used for lists of ProjectItems.
     """
-    name: str = Field()     # no default; must exist
+    name: str = Field()  # no default; must exist
 
     @override
     def get_qualified_name(self) -> str:

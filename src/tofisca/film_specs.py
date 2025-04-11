@@ -56,6 +56,7 @@ class FilmSpecKey(str, Enum):
     NORMAL8 = "normal8"
     STD16MM = "std16mm"
     SUPER16 = "super16"
+    UNKNOWN = "unknown"
 
 
 """
@@ -156,6 +157,11 @@ film_specs: dict[FilmSpecKey, dict[FSKeys, any]] = {
 
         FSKeys.FRAME_CORNER_RADIUS: 0.508,  # radius of aperture frame corners
         FSKeys.PERFORATION_RADIUS: 0.25,  # corner radius
+    },
+
+    FilmSpecKey.UNKNOWN: {
+        FSKeys.NAME: "Unknown",
+        FSKeys.FRAMERATES: (16, 18, 20, 24, 25, 30, 48, 60,),
     }
 }
 

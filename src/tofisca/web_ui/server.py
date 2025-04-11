@@ -94,7 +94,10 @@ async def validation_exception_handler(_, exc: RequestValidationError):
     errors_list: list[str] = []
 
     for error in errors:
-        msg = f"The api {error['loc'][0]} parameter '{error['loc'][1]}' is invalid: {error['msg']}"
+        parameter = ""
+        for loc in error['loc']:
+            parameter += f"{loc}:"
+        msg = f"Parameter '{parameter}' is invalid: {error['msg']}"
         errors_list.append(msg)
 
     details = "\n".join(errors_list)

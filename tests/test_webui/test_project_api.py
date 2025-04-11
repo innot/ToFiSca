@@ -15,14 +15,17 @@
 #
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
 from main import MainApp
-from web_ui.server import webui_app, set_app, get_app
+from project import ProjectPathEntry
 from web_ui.api_errors import APIInvalidDataError
+from web_ui.server import webui_app, set_app, get_app
 
 
 @pytest.fixture(scope="session")
@@ -84,3 +87,33 @@ async def test_project_name(client, project) -> None:
     assert response.status_code == APIInvalidDataError.status_code
 
     # test duplicate name
+
+
+@pytest.mark.asyncio
+async def test_project_paths(client, project) -> None:
+    response = client.get("/api/project/allpaths")
+    assert response.status_code == 200
+    paths = response.json()
+    assert "project" in paths
+    assert "scanned" in paths
+    scanned_path = ProjectPathEntry.model_validate(paths["scanned"])
+    assert isinstance(scanned_path, ProjectPathEntry)
+    assert scanned_path.name == "scanned"
+
+    # change path and write back
+    scanned_path.path = "/foo/${name}/bar"
+    response = client.put("/api/project/path", json=scanned_path.model_dump())
+    assert response.status_code == 200
+    path = ProjectPathEntry.model_validate(response.json())
+    assert path.resolved == str(Path("/foo/TestProject/bar/").resolve())
+
+    # and read again
+    response = client.get(f"/api/project/path?name={scanned_path.name}")
+    assert response.status_code == 200
+    path = ProjectPathEntry.model_validate(response.json())
+    assert path.path == "/foo/${name}/bar"
+
+
+@pytest.mark.asyncio
+def test_film_data(client, project):
+    pass

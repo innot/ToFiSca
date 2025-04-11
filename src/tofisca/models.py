@@ -16,29 +16,29 @@
 #  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
 #
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, computed_field
 
 from configuration.config_item import ConfigItem
 
 
 class Point(BaseModel):
-    x: float = Field(0, ge=0.0, le=1.0)
-    y: float = Field(0, ge=0.0, le=1.0)
+    x: float = Field(default=0, ge=0.0, le=1.0)
+    y: float = Field(default=0, ge=0.0, le=1.0)
 
 
 class OffsetPoint(BaseModel):
-    dx: float = Field(0, ge=-1.0, le=1.0)
-    dy: float = Field(0, ge=-1.0, le=1.0)
+    dx: float = Field(default=0, ge=-1.0, le=1.0)
+    dy: float = Field(default=0, ge=-1.0, le=1.0)
 
 
 class Size(BaseModel):
-    width: float = Field(0, ge=0.0, le=1.0)
-    height: float = Field(0, ge=0.0, le=1.0)
+    width: float = Field(default=0, ge=0.0, le=1.0)
+    height: float = Field(default=0, ge=0.0, le=1.0)
 
 
 class SizePixels(BaseModel):
-    width: int = Field(0, ge=0)
-    height: int = Field(0, ge=0)
+    width: int = Field(default=0, ge=0)
+    height: int = Field(default=0, ge=0)
 
     def as_tupel(self) -> tuple[int, int]:
         return self.width, self.height
@@ -49,10 +49,10 @@ class Rect(BaseModel):
     A Rectangle described by its top left point (x/y) and its size (widht/height).
     All values are normalized between 0 and 1.
     """
-    x: float = Field(0, ge=0.0, le=1.0)
-    y: float = Field(0, ge=0.0, le=1.0)
-    width: float = Field(0, ge=0.0, le=1.0)
-    height: float = Field(0, ge=0.0, le=1.0)
+    x: float = Field(default=0, ge=0.0, le=1.0)
+    y: float = Field(default=0, ge=0.0, le=1.0)
+    width: float = Field(default=0, ge=0.0, le=1.0)
+    height: float = Field(default=0, ge=0.0, le=1.0)
 
     @property
     def center(self) -> Point:
@@ -64,10 +64,10 @@ class RectEdges(BaseModel):
     """
     A Rectangle described by its top, bottom, left, and right edges.
     """
-    top: float = Field(0, ge=0.0, le=1.0)
-    bottom: float = Field(0, ge=0.0, le=1.0)
-    left: float = Field(0, ge=0.0, le=1.0)
-    right: float = Field(0, ge=0.0, le=1.0)
+    top: float = Field(default=0, ge=0.0, le=1.0)
+    bottom: float = Field(default=0, ge=0.0, le=1.0)
+    left: float = Field(default=0, ge=0.0, le=1.0)
+    right: float = Field(default=0, ge=0.0, le=1.0)
 
     @property
     def center(self) -> Point:
@@ -109,9 +109,9 @@ class PerforationLocation(ConfigItem):
 
 
 class ScanArea(ConfigItem):
-    perf_ref: PerforationLocation = Field(default=None, description="The reference this ScanArea is based on.")
-    ref_delta: OffsetPoint = Field(default=None, description="delta from reference point to top left")
-    size: Size = Field(default=None, description="width of the scan area")
+    perf_ref: PerforationLocation = Field(default=PerforationLocation(), description="The reference this ScanArea is based on.")
+    ref_delta: OffsetPoint = Field(default=OffsetPoint(), description="delta from reference point to top left")
+    size: Size = Field(default=Size(), description="width of the scan area")
 
     @property
     def rect(self) -> Rect:

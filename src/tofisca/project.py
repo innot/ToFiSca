@@ -80,29 +80,26 @@ class Project:
 
         # load defaults
 
-        self._project_state: ProjectState = ProjectState(pid=pid)
+        self._project_state: ProjectState = ProjectState()
 
         self._paths: dict[str, ProjectPathEntry] = {
-            "project": ProjectPathEntry(pid=pid,
-                                        name="project",
+            "project": ProjectPathEntry(name="project",
                                         description="General project data storage",
                                         path="${name}",
                                         ),
-            "scanned": ProjectPathEntry(pid=pid,
-                                        name="scanned",
+            "scanned": ProjectPathEntry(name="scanned",
                                         description="Folder for raw scanned images",
                                         path="${project}/scanned_images",
                                         ),
-            "final": ProjectPathEntry(pid=pid,
-                                      name="final",
+            "final": ProjectPathEntry(name="final",
                                       description="Images after processing",
                                       path="${project}/final_images",
                                       ),
         }
 
-        self._film_data: FilmData = FilmData(pid=pid)
+        self._film_data: FilmData = FilmData()
 
-        self._scanarea = ScanAreaManager(pid=pid)
+        self._scanarea = ScanAreaManager()
 
     async def load(self) -> Project:
         """
@@ -186,6 +183,7 @@ class Project:
 
         If neither of these methods has been called, this property will be `None`.
         """
+        return self._scanarea.scanarea
 
     async def set_name(self, new_name: str) -> None:
         """

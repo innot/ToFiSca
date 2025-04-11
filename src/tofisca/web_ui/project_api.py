@@ -112,9 +112,9 @@ async def put_project_name(name: str) -> str:
                 APINoActiveProject.status_code: {"model": APINoActiveProject},
             },
             tags=[Tags.PROJECT_SETTING])
-async def get_all_paths() -> list[ProjectPathEntry]:
+async def get_all_paths() -> dict[str, ProjectPathEntry]:
     active_project = await get_active_project()
-    return list(active_project.all_paths.values())
+    return active_project.all_paths
 
 
 @router.get("/api/project/path",

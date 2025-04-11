@@ -17,8 +17,8 @@ import cv2 as cv
 import numpy as np
 from pydantic import Field
 
-from configuration.database import ConfigDatabase, Scope
 from configuration.config_item import ConfigItem
+from configuration.database import ConfigDatabase, Scope
 from film_specs import FilmSpecs, FSKeys, FilmSpecKey
 from models import ScanArea, PerforationLocation, Rect, Point, OffsetPoint, Size, RectEdges
 
@@ -257,6 +257,10 @@ class ScanAreaManager:
         if not self._scanarea:
             raise ScanAreaManagerNotSetUpError
 
+        if self.film_spec == FilmSpecKey.UNKNOWN:
+            # The UNKNOWN Filmspec has no sizes to base the recommendation on
+            return 0
+
         # How much of the image the frame occupies
         frame_to_perf = self._specs[FSKeys.FILM_FRAME_SIZE][1] / self._specs[FSKeys.PERFORATION_SIZE][1]
         frame_height = self._reference_perfloc.height * frame_to_perf
@@ -294,6 +298,11 @@ class ScanAreaManager:
         :raises ScanAreaOutOfImageException: If a perforation contour was found, but a ScanArea derived from it is at
             least partially outside the image
         """
+
+        if self.film_spec == FilmSpecKey.UNKNOWN:
+            # The UNKNOWN FilmSpec has no sizes that could be used to detect a perforation hole
+            raise PerforationNotFoundException
+
         self._image = image
 
         # mark the current areas as invalid
@@ -379,7 +388,13 @@ class ScanAreaManager:
 
         if not self._scanarea:
             # ScanArea has not yet been set up. Do so now, using the specified film dimensions and the perforation size
-            scanarea = await self._get_scanarea_from_perforation(perf_loc)
+            if self.film_spec == FilmSpecKey.UNKNOWN:
+                # unknown has no sizes. So just assume most of the image
+                scanarea = ScanArea(perf_ref=perf_loc,
+                                    ref_delta=OffsetPoint(dx=0, dy=-perf_loc.reference.y + 0.1),
+                                    size=Size(width=1.0 - perf_loc.inner_edge - 0.1, height=0.8))
+            else:
+                scanarea = await self._get_scanarea_from_perforation(perf_loc)
             if not scanarea.is_valid:
                 # scanarea is not within the image
                 raise ScanAreaOutOfImageException(start_point, scanarea)

@@ -94,6 +94,12 @@ async def test_autodetect(sam, tfg):
     with pytest.raises(PerforationNotFoundException):
         await sam.autodetect(blank_image())
 
+    # UNKNOWN Filmspec cannot be autodetected
+    with pytest.raises(PerforationNotFoundException):
+        sam.film_spec = FilmSpecKey.UNKNOWN
+        tfg.horizontal_offset = 0.0
+        img = tfg.render_image()
+        await sam.autodetect(img)
 
 @pytest.mark.asyncio
 async def test_manualdetect(sam, tfg):
@@ -114,9 +120,16 @@ async def test_manualdetect(sam, tfg):
     await sam.manualdetect(img, Point(x=0, y=ref_perf_y))
     assert sam.scanarea is not None
 
+    # UNKNOWN filmspec should still detect a valid Scanarea
+    sam._scanarea = None
+    sam.film_spec = FilmSpecKey.UNKNOWN
+    await sam.manualdetect(img, Point(x=0, y=ref_perf_y))
+    assert sam.scanarea is not None
+
     # blank image - should not find any perforation
     with pytest.raises(PerforationNotFoundException):
         await sam.manualdetect(blank_image(), Point(x=0.5, y=0.5))
+
 
 
 @pytest.mark.asyncio
