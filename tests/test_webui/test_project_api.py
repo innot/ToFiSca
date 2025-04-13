@@ -115,5 +115,5 @@ async def test_project_paths(client, project) -> None:
 
 
 @pytest.mark.asyncio
-def test_film_data(client, project):
+async def test_film_data(client, project):
     pass

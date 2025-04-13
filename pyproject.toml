@@ -43,7 +43,7 @@ dependencies = [
     "asyncssh~=2.9.0",
     "numpy~=2.2.1",
     "opencv-contrib-python-headless~=4.10.0.84; sys_platform == 'linux'",
-    "opencv-python (>=4.10.0.84,<4.11.0.0)",
+    "opencv-python (>=4.10.0.84,<4.11.0.0); sys_platform == 'windows'",
     "pillow~=11.1.0",
     "platformdirs~=4.3.6",
     "lgpio~=0.2.2.0; sys_platform == 'linux'",

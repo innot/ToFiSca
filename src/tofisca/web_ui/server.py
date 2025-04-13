@@ -115,7 +115,7 @@ async def validation_exception_handler(_, exc: RequestValidationError):
 async def run_webui_server(app: App):
     set_app(app)
 
-    port = 80  # todo: make port configurable
+    port = 8080  # todo: make port configurable
 
     config = uvicorn.Config(webui_app, port=port, log_level="info")
     server = uvicorn.Server(config)

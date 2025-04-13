@@ -6,8 +6,8 @@ import numpy as np
 from pydantic import Field
 
 from app import App
-from config_item import ConfigItem
-from database import Scope
+from configuration.config_item import ConfigItem
+from configuration.database import Scope
 from models import SizePixels
 
 try:

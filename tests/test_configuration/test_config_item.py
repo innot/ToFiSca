@@ -87,19 +87,19 @@ async def test_project_item(database):
     # create a project
     pid = await database.create_project()
 
-    item = TestItem(pid=pid)
+    item = TestItem()
 
     assert await database.retrieve_setting(key=item.get_qualified_name(), scope=pid) is None
     assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.GLOBAL) is None
     assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.DEFAULT) is None
 
-    await item.store(database)
+    await item.store(database,pid)
 
     assert await database.retrieve_setting(key=item.get_qualified_name(), scope=pid) is not None
     assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.GLOBAL) is None
     assert await database.retrieve_setting(key=item.get_qualified_name(), scope=Scope.DEFAULT) is None
 
-    item2 = await TestItem(pid=pid).retrieve(database)
+    item2 = await TestItem().retrieve(database, pid)
     assert item2 == item
 
     await item.store_global(database)
@@ -112,5 +112,5 @@ def test_named_project_item(database):
     class TestItem(NamedProjectItem):
         pass
 
-    item = TestItem(name="the_name", pid=-1)
+    item = TestItem(name="the_name")
     assert item.get_qualified_name() == "testitem.the_name"
