@@ -19,18 +19,18 @@ import asyncio
 import logging
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.exceptions import HTTPException
-from starlette.responses import JSONResponse
+from fastapi.responses import JSONResponse
 
 from app import App
 from errors import ProjectDoesNotExistError, ProjectAlreadyExistsError
 from web_ui.api_errors import APIProjectDoesNotExist, APIInvalidDataError, APIProjectAlreadyExists
 from web_ui.camera_api import router as camera_api_router
 from web_ui.global_api import router as global_api_router
+from web_ui.hardware_api import router as hardware_api_router
 from web_ui.project_api import router as project_api_router
 from web_ui.websocket_api import router as websocket_router
 
@@ -58,6 +58,7 @@ webui_app = FastAPI()
 webui_app.include_router(global_api_router)
 webui_app.include_router(project_api_router)
 webui_app.include_router(camera_api_router)
+webui_app.include_router(hardware_api_router)
 webui_app.include_router(websocket_router)
 
 webui_app.add_middleware(
@@ -67,6 +68,7 @@ webui_app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @webui_app.exception_handler(HTTPException)
 async def http_exception_handler(_, exc: HTTPException):
@@ -117,7 +119,7 @@ async def run_webui_server(app: App):
 
     port = 8080  # todo: make port configurable
 
-    config = uvicorn.Config(webui_app, port=port, log_level="info")
+    config = uvicorn.Config(webui_app, host="0.0.0.0", port=port, log_level="info")
     server = uvicorn.Server(config)
     logger.info(f"WebUI server started on port {port}")
 

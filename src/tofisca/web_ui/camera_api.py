@@ -24,10 +24,14 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from camera_manager import CameraManager, VideoStreamOutput
-from mock_picamera2.encoders import JpegEncoder
 from project import Project
 from web_ui import Tags
 from web_ui.api_errors import APINoActiveProject
+
+try:
+    from picamera2.encoders import JpegEncoder
+except ImportError:
+    from mock_picamera2.encoders import JpegEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +66,9 @@ router = APIRouter()
 @router.get("/api/camera/preview",
             responses={200: {"content": {"image/png": {}}}},
             tags=[Tags.CAMERA], )
-async def get_camera_preview() -> Response:
+async def get_camera_preview(reload: bool = False) -> Response:
     cm = get_camera_manager()
-    image_data = await cm.get_preview_image()
+    image_data = await cm.get_preview_image(reload=reload)
     image = Image.fromarray(image_data)
 
     stream = io.BytesIO()

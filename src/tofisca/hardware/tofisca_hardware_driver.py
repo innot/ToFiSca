@@ -22,7 +22,7 @@ import subprocess
 
 import lgpio
 
-from hardware_pwm import HardwarePWM
+from pwm_manager import PWMManager
 
 
 class TofiscaHardwareDriver:
@@ -44,18 +44,18 @@ class TofiscaHardwareDriver:
         self._auto_pickup_task: asyncio.Task | None = None
         self._pwm_running: dict = {}
 
-        self.allocate_gpio()
+#        self.allocate_gpio()
         self.allocate_pwm()
 
     def allocate_gpio(self):
         self.handle = lgpio.gpiochip_open(0)
-        lgpio.gpio_claim_output(self.handle, self.LED_PIN, 0)
+        # lgpio.gpio_claim_output(self.handle, self.LED_PIN, 0)
         # lgpio.gpio_claim_output(self.handle, self.FAN_MOTOR_PIN, 0)
         lgpio.gpio_claim_output(self.handle, self.REEL_MOTOR_PIN, 0)
         lgpio.gpio_claim_alert(self.handle, self.FEED_SWITCH_PIN, lgpio.BOTH_EDGES, lgpio.SET_PULL_UP)
 
     def release_gpio(self):
-        lgpio.gpio_free(self.handle, self.LED_PIN)
+        # lgpio.gpio_free(self.handle, self.LED_PIN)
         # lgpio.gpio_free(self.handle, self.FAN_MOTOR_PIN)
         lgpio.gpio_free(self.handle, self.REEL_MOTOR_PIN)
         lgpio.gpio_free(self.handle, self.FEED_SWITCH_PIN)
@@ -63,10 +63,10 @@ class TofiscaHardwareDriver:
 
     def allocate_pwm(self):
         led_chan = self._get_pwm_channel_for_pin(self.LED_PIN)
-        self._pwm_led = HardwarePWM(led_chan, self.LED_PWM_FREQ)
+        self._pwm_led = PWMManager(led_chan, self.LED_PWM_FREQ)
 
         fan_chan = self._get_pwm_channel_for_pin(self.FAN_MOTOR_PIN)
-        self._pwm_fan = HardwarePWM(fan_chan, self.FAN_MOTOR_PWM_FREQ)
+        self._pwm_fan = PWMManager(fan_chan, self.FAN_MOTOR_PWM_FREQ)
 
     @property
     def pickup_switch(self) -> int:

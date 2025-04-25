@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import signal
 import sys
 from pathlib import Path
 
@@ -48,7 +49,7 @@ class MainApp(App):
         self._camera_manager = CameraManager(self)
 
         # start the hardware manager to set up the gpios
-        self._hardware_manager = HardwareManager()
+        self._hardware_manager = HardwareManager(self)
 
         self._shutdown_event = Event_ts()
 
@@ -58,6 +59,12 @@ class MainApp(App):
 
     async def main(self) -> int:
         logger.info("Starting ToFiSca")
+
+
+        # initialize all managers
+        await self._hardware_manager.init()
+        await self._camera_manager.init()
+        # await self._project_manager.init()
 
         #
         # run the different tasks
@@ -75,6 +82,11 @@ class MainApp(App):
         # Start SshUI to control the Application via ssh
         #    ssh_task = asyncio.create_task(SSHServer().run())
 
+        def handle_sigint(*args):
+            self.shutdown_event.set()
+
+        signal.signal(signal.SIGINT, handle_sigint)
+
         # wait for any task to finish (this will close the application)
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 
@@ -88,8 +100,9 @@ class MainApp(App):
         return 0
 
 
+
 if __name__ == "__main__":
     # todo: read the storage path and the database file from the command line arguments
-    app = MainApp()
+    app = MainApp(database_file="memory")
     exitcode = asyncio.run(app.main())
     sys.exit(exitcode)

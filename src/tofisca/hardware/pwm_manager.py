@@ -1,29 +1,33 @@
-#  This file is part of the ToFiSca application.
-#
-#  ToFiSca is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  ToFiSca is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with ToFiSca.  If not, see <http://www.gnu.org/licenses/>.
-#
-#  Copyright (c) 2025 by Thomas Holland, thomas@innot.de
-#
+# Copyright 2025  Thomas Holland
+
+# License: MIT
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+# and associated documentation files (the “Software”), to deal in the Software without
+# restriction, including without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
 
 import enum
 import logging
+import os
 import re
 import subprocess
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Union
 
 import lgpio
 from pydantic import BaseModel, Field
@@ -31,29 +35,32 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-class PWMType(enum.Enum):
+class PWMDriverType(enum.Enum):
     """
     The types of pwm generation a gpio pin supports
     """
-    HARDWARE = "hardware"
-    PIO = "pio"
-    LGPIO = "software"
+    HARDWARE = "pwm"
+    PIO = "pwm-pio"
+    GPIO = "pwm-gpio"
+    LGPIO = "lgpio"
+    UNKNOWN = "unknown"
 
 
 class PWMPinInfo(BaseModel):
     """
-    Storage for a gpio pin number and the :class:`PWMType` it supports.
+    Storage for a gpio pin number and the :class:`PWMDriverType` that generates the pwm signal.
 
-    Technically, a pin could support multiple types (hardware and software), but
-    only the 'best' type is stored.
+    Technically a pin could be driven by more than one driver. However we only use the "best" driver available.
     """
     gpio: int = Field(ge=0, le=255)
-    type: PWMType = Field()
+    driver: PWMDriverType = Field()
 
 
-class HardwarePWMPinInfo(PWMPinInfo):
+class SysfsPWMPinInfo(PWMPinInfo):
     """
-    Additional information about a hardware pin. The 'pwmchip_' number and its channel.
+    Additional information about pin that is accessed through the sysfs at '/sys/class/pwm'
+
+    It containes the chip number '...pwmchip[n]' and the channel number '...pwmchip[n]/pwm[n]'.
     """
     chip: int = Field(ge=0, le=255)
     channel: int = Field(ge=0, le=255)
@@ -62,20 +69,14 @@ class HardwarePWMPinInfo(PWMPinInfo):
 class PWMChipInfo(BaseModel):
     """
     Information about 'pwmchip_'.
-    It has the channels still available (not used by the system) and the type of chip
-    (currently only `PWMType.HARDWARE` and `PWMType.PIO` - the latter only available on the
-    Raspberry Pi 5 and higher).
+    It has the channels still available (not used by the system) and the :class:`PWMDriver` class required for
+    accessing the pin.
+
     """
     chip: int = Field(ge=0, le=255)
     channels: list[int] = Field()
-    type: PWMType = Field()
-
-
-class PioPWMChipInfo(PWMChipInfo):
-    """
-    Additional information required for the `PWMType.PIO` chips, where each chip is associated with a single pin.
-    """
-    pio_gpio: Union[int, None] = Field(default=None, ge=0, le=255)
+    driver: PWMDriverType = Field()
+    assigned_pin: int | None = Field(default=None, ge=0, le=255)
 
 
 class PWMAlreadyInUse(RuntimeError):
@@ -85,15 +86,23 @@ class PWMAlreadyInUse(RuntimeError):
         super().__init__(msg)
 
 
+class PWMAllocationTimeout(RuntimeError):
+
+    def __init__(self, pwm_pin: PWMPinInfo):
+        msg = f"Allocating Pin {pwm_pin.gpio} timed out after 1s"
+        super().__init__(msg)
+
+
 class PWMPin(ABC):
     """
     Class to control a single PWM gpio pin.
 
     There are several properties to control the pwm output:
 
-        - :meth:`enable` to switch to pwn output on or off
-        - :meth:`frequency` to set the pwm frequency, and
-        - :meth:`dutycycle` to set the pwm dutycycle.
+        - :attr:`enable` to switch to pwn output on or off
+        - :attr:`frequency` to set the pwm frequency, and
+        - :attr:`dutycycle` to set the pwm dutycycle.
+        - :attr:`invert` to invert the signal polarity.
 
     This class should not be instantiated directly. Instead use :meth:`PWMManager.allocate` to get a
     `PWMPin` instance for a given port.
@@ -105,6 +114,7 @@ class PWMPin(ABC):
         self._pin = pin
         self._frequency: float = 1000
         self._dutycycle: float = 0.5
+        self._inverted: bool = False
         self._is_on: bool = False
         self._is_allocated: bool = False
 
@@ -130,6 +140,21 @@ class PWMPin(ABC):
     @dutycycle.setter
     def dutycycle(self, percent: float) -> None:
         self._dutycycle = percent
+
+    @property
+    def invert(self) -> bool:
+        """
+        If `True` the polarity of the pwm signal is inverted, i.e. for dutycycle
+            -   100% : the pin is always low
+            -   0% : the pin is always hight
+
+        Default is `False`, i.e. pin high for 100% and pin low for 0%
+        """
+        return self._inverted
+
+    @invert.setter
+    def invert(self, value: bool = False) -> None:
+        self._inverted = value
 
     @property
     def enable(self) -> bool:
@@ -176,19 +201,22 @@ class PWMPin(ABC):
         self._is_allocated = False
 
 
-class HardwarePWMPin(PWMPin):
+class SysfsPWMPin(PWMPin):
+    """
+    Implements the :class:`PWMPin` interface for a pin that is accessed through the kernel sysfs.
+    """
 
     def __init__(self, pin: PWMPinInfo):
         super().__init__(pin)
 
-        if not isinstance(pin, HardwarePWMPinInfo):
+        if not isinstance(pin, SysfsPWMPinInfo):
             raise TypeError("Pin is not a HardwarePWMPinInfo")
 
-        self._pin: HardwarePWMPinInfo = pin
+        self._pin: SysfsPWMPinInfo = pin
         self._is_allocated = False
 
-        self._pwm_chip_path = Path(f"/sys/class/pwm/pwmchip{pin.chip}/")
-        self._pwm_pwm_path = self._pwm_chip_path / f"pwm{pin.channel}/"
+        self._chip_path = Path(f"/sys/class/pwm/pwmchip{pin.chip}/")
+        self._pwm_path = self._chip_path / f"pwm{pin.channel}/"
 
     def __del__(self):
         if self._is_allocated:
@@ -198,6 +226,10 @@ class HardwarePWMPin(PWMPin):
     def dutycycle(self, percent: float) -> None:
         if not (0 <= percent <= 100):
             raise ValueError(f"Duty cycle must be between 0% and 100% (inclusive), was {percent}%")
+
+        if self._inverted:
+            percent = 100 - percent
+
         self._dutycycle = percent
 
         # get the current frequency and convert to nanoseconds
@@ -205,46 +237,51 @@ class HardwarePWMPin(PWMPin):
         dutycycle_ns = int(period * percent / 100)
 
         # set the new dutycycle in the sysfs
-        self.echo(self._pwm_pwm_path / "duty_cycle", dutycycle_ns)
+        self.echo(self._pwm_path / "duty_cycle", dutycycle_ns)
 
     @PWMPin.frequency.setter
     def frequency(self, hz: int) -> None:
         self._frequency = hz
 
-        # change Hz to ns
+        # change Hz to nanoseconds
         period = int(1_000_000_000 / hz)
 
         # calculate the duty_cycle for the new period
         dutycycle_ns = int(period * self.dutycycle / 100)
 
-        self.echo(self._pwm_pwm_path / "duty_cycle", 0)  # in case the new dutycycle is longer than the old period
-        self.echo(self._pwm_pwm_path / "period", period)
-        self.echo(self._pwm_pwm_path / "duty_cycle", dutycycle_ns)
+        self.echo(self._pwm_path / "duty_cycle", 0)  # in case the new dutycycle is longer than the old period
+        self.echo(self._pwm_path / "period", period)
+        self.echo(self._pwm_path / "duty_cycle", dutycycle_ns)
 
     @PWMPin.enable.setter
     def enable(self, enable: bool) -> None:
         if enable:
-            self.echo(self._pwm_pwm_path / "enable", "1")
+            self.echo(self._pwm_path / "enable", "1")
         else:
-            self.echo(self._pwm_pwm_path / "enable", "0")
+            self.echo(self._pwm_path / "enable", "0")
         self._is_on = enable
 
     def _allocate(self):
         # activate the channel
         try:
-            self.echo(self._pwm_chip_path / "export", self._pin.channel)
+            self.echo(self._chip_path / "export", self._pin.channel)
             self._is_allocated = True
-            # Immediatly setting any pwm value caused PermissionErrors
-            # Give the os some time to set up the pwm_ node in the sysfs
-            time.sleep(0.1)
+            # Immediately setting any pwm value caused PermissionErrors
+            # Wait until the node exists (or timeout if it takes too long)
+            time_start = time.time_ns()
+            while not os.access(self._pwm_path / "duty_cycle", os.W_OK):
+                logger.info("Waiting for pwm_/duty_cycle to appear")
+                time.sleep(0.01)
+                if time.time_ns() - time_start > 1_000_000_000:  # More than 1 second
+                    raise PWMAllocationTimeout(self._pin)
         except OSError:
             raise PWMAlreadyInUse(self._pin)
 
     def _free(self):
         # release the channel
         try:
-            self.echo(self._pwm_chip_path / "unexport", self._pin.channel)
             self._is_allocated = False
+            self.echo(self._chip_path / "unexport", self._pin.channel)
         except OSError:
             # For now, ignore error
             logger.warning(f"Free PWMPin pin {self._pin} was freed again")
@@ -255,9 +292,9 @@ class HardwarePWMPin(PWMPin):
             f.write(f"{value}\n")
 
 
-class SoftwarePWMPin(PWMPin):
+class LgpioPWMPin(PWMPin):
     """
-    Generate a pwm signal using the `lgpio` library
+    Implements the :class:`PWMPin` interface for a pin that is accessed via the `lgpio` library.
     """
 
     def __init__(self, pin: PWMPinInfo):
@@ -276,6 +313,10 @@ class SoftwarePWMPin(PWMPin):
     def dutycycle(self, percent: float) -> None:
         if not (0 <= percent <= 100):
             raise ValueError(f"Duty cycle must be between 0% and 100% (inclusive), was {percent}%")
+
+        if self._inverted:
+            percent = 100 - percent
+
         self._dutycycle = percent
 
         if self._is_on:
@@ -379,18 +420,20 @@ class PWMManager:
         return list(self._allpwmpins)
 
     @property
-    def available_hardware_pwm(self) -> list[HardwarePWMPinInfo]:
+    def available_hardware_pwm(self) -> list[PWMPinInfo]:
         """
         The list of all pins supporting hardware pwm on the current platform.
         """
-        return [pin for pin in self.available_pwm if isinstance(pin, HardwarePWMPinInfo)]
+        hw_drivers = [PWMDriverType.HARDWARE, PWMDriverType.PIO]
+        return [pin for pin in self.available_pwm if pin.driver in hw_drivers]
 
     @property
     def available_software_pwm(self) -> list[PWMPinInfo]:
         """
         The list of all pins supporting software pwm on the current platform.
         """
-        return [pin for pin in self.available_pwm if pin.type == PWMType.LGPIO]
+        sw_drivers = [PWMDriverType.GPIO, PWMDriverType.LGPIO]
+        return [pin for pin in self.available_pwm if pin.driver in sw_drivers]
 
     def allocate(self, pwmpin: int | PWMPinInfo) -> PWMPin:
         """
@@ -413,10 +456,10 @@ class PWMManager:
         if pininfo.gpio in self._all_allocated:
             raise PWMAlreadyInUse(pininfo)
 
-        if pininfo.type == PWMType.LGPIO:
-            pindrv = SoftwarePWMPin(pininfo)
+        if pininfo.driver == PWMDriverType.LGPIO:
+            pindrv = LgpioPWMPin(pininfo)
         else:
-            pindrv = HardwarePWMPin(pininfo)
+            pindrv = SysfsPWMPin(pininfo)
 
         pindrv._allocate()
         self._all_allocated[pininfo.gpio] = pindrv
@@ -462,37 +505,45 @@ class PWMManager:
 
         matchctrls = re.compile(r'.*\sGPIO(\d+)\s*=\s*(\w+)')
         matchchipchannel = re.compile(r'PWM(\d)_CHAN(\d)')
+
+        # get the pins that are supported by pwm_pio or pwm_gpio
+        pio_pins: dict[int, tuple[int, PWMDriverType]] = {}
+        for chip in self.pwmchips:
+            if chip.assigned_pin is not None:
+                pio_pins[chip.assigned_pin] = (chip.chip, chip.driver)
+
+        # get the output of "pinctrl" and parse it
         gpiolist = subprocess.getoutput("pinctrl").split("\n")
         for gpio in gpiolist:
             ctrlsmatch = matchctrls.match(gpio)
             if ctrlsmatch:
                 gpio = int(ctrlsmatch.group(1))
 
-                chipchannel = matchchipchannel.match(ctrlsmatch.group(2))
-                if chipchannel:
+                chipchannel_match = matchchipchannel.match(ctrlsmatch.group(2))
+                if chipchannel_match:
                     # The pin is a Hardware PWMPin pin
-                    result.append(HardwarePWMPinInfo(gpio=gpio,
-                                                     type=PWMType.HARDWARE,
-                                                     chip=int(chipchannel.group(1)),
-                                                     channel=int(chipchannel.group(2)),
-                                                     )
+                    result.append(SysfsPWMPinInfo(gpio=gpio,
+                                                  driver=PWMDriverType.HARDWARE,
+                                                  chip=int(chipchannel_match.group(1)),
+                                                  channel=int(chipchannel_match.group(2)),
+                                                  )
                                   )
                     continue
-                if ctrlsmatch.group(2).startswith("PIO"):
-                    # The pin is a PIO pin. Get the pwmchip from the number
-                    pwmchips = self.pwmchips
-                    for chip in pwmchips:
-                        if isinstance(chip, PioPWMChipInfo) and chip.pio_gpio == gpio:
-                            result.append(HardwarePWMPinInfo(gpio=gpio,
-                                                             type=PWMType.PIO,
-                                                             chip=chip.chip,
-                                                             channel=0,
-                                                             )
-                                          )
+
+                # check if this is either a pwm_pio or pwm_gpio
+                if gpio in pio_pins:
+                    result.append(SysfsPWMPinInfo(gpio=gpio,
+                                                  driver=pio_pins[gpio][1],
+                                                  chip=pio_pins[gpio][0],
+                                                  channel=0,
+                                                  )
+                                  )
+                    pio_pins.pop(gpio, None)  # hack to remove the pin as there are more pins named "GPIO[n]"
                     continue
+
+                # check that the pin is free for lgpio software pwm
                 if ctrlsmatch.group(2) == "none":
-                    # The pin can be used for software pwm
-                    result.append(PWMPinInfo(gpio=gpio, type=PWMType.LGPIO))
+                    result.append(PWMPinInfo(gpio=gpio, driver=PWMDriverType.LGPIO))
         return result
 
     @staticmethod
@@ -505,7 +556,7 @@ class PWMManager:
 
         chipnumber_re = re.compile(r'(\d+):.*(\d)\sPWM.*')
         channelnumber_re = re.compile(r'\s*pwm-(\d+)\s*\((\S*).*\)')
-        piopin_re = re.compile(r'.*pwm_pio@(\d+).*')
+        pin_re = re.compile(r'.*pwm_(\w+)@(\w+),.*')
 
         pwmfile = Path("/sys/kernel/debug/pwm")
         with (open(pwmfile, "r") as f):
@@ -516,15 +567,27 @@ class PWMManager:
                     # start of a new chip.
                     chip_number = chipmatch.group(1)  # the number of the chip, e.g. 0 for pwmchip0
 
-                    if "pwm_pio" in line:
-                        pwm_type = PWMType.PIO  # this chip is a raspi 5 pio chip
-                        match = piopin_re.match(line)
-                        piopin = int(match.group(1))
-                        chip = PioPWMChipInfo(chip=chip_number, channels=[], type=pwm_type, pio_gpio=piopin)
+                    # check if this a pwm_pio or pwm_gpio driver
+                    pin_match = pin_re.match(line)
+                    if pin_match:
+                        # this is a pwm_pio or pwm_gpio "chip" driver
+                        pin = int(pin_match.group(2), 16)  # pin number is in hex
+                        driver = pin_match.group(1)
+                        if driver == "gpio":
+                            driver_type = PWMDriverType.GPIO
+                        elif driver == "pio":
+                            driver_type = PWMDriverType.PIO
+                        else:
+                            # unknown driver
+                            logger.warning(f"Found unknown driver type '{driver}' in line: {line}")
+                            driver_type = PWMDriverType.UNKNOWN
+                        chip = PWMChipInfo(chip=chip_number, channels=[], driver=driver_type, assigned_pin=pin)
 
                     else:
-                        pwm_type = PWMType.HARDWARE  # if not pio then it is a plain hardware chip
-                        chip = PWMChipInfo(chip=chip_number, channels=[], type=pwm_type)
+                        # This is neither a pwm_pio nor a pwm_gpio driver. Assume it is a hardware driver.
+                        pwm_driver = PWMDriverType.HARDWARE  # if not pio then it is a plain hardware chip
+                        chip = PWMChipInfo(chip=chip_number, channels=[], driver=pwm_driver)
+
                     result.append(chip)
 
                     # get all channels of the chip, but only add then if they are unsed

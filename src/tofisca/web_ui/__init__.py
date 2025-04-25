@@ -8,4 +8,5 @@ class Tags(Enum):
     GLOBAL_SETTING = "Global Setting"
     PROJECT_SETTING = "Project Setting"
     CAMERA = "camera"
+    HARDWARE = "hardware"
     WEBSOCKET = "websocket"

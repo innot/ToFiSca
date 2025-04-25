@@ -23,9 +23,10 @@ import pytest
 try:
     import lgpio
 except ImportError:
+    lgpio = None
     pass
 
-from hardware.pwm_manager import PWMManager, PWMChipInfo,PWMAlreadyInUse, PWMType
+from hardware.pwm_manager import PWMManager, PWMChipInfo,PWMAlreadyInUse, PWMDriverType
 
 
 @pytest.fixture()
@@ -62,7 +63,7 @@ def test_hardware_pwm(pwm_manager):
     all_pwm = pwm_manager.available_hardware_pwm
 
     # pwm_pio crashes hard on my system. so ignore it for now and use a normal hardware pwm
-    all_hardware = [pin for pin in all_pwm if pin.type == PWMType.HARDWARE]
+    all_hardware = [pin for pin in all_pwm if pin.driver == PWMDriverType.HARDWARE]
     if len(all_hardware) == 0:
         # no hardware pwm found, end test
         pytest.fail()
@@ -135,4 +136,25 @@ def test_software_pwm(pwm_manager):
     assert pwmpin.is_allocated
     pwm_manager.free(pwmpin.gpio)
     assert not pwmpin.is_allocated
+
+def test_foobar():
+    pwm = PWMManager()
+    pin = pwm.allocate(23)
+
+    pin.frequency = 1000
+    pin.dutycycle = 50
+    pin.enable = True
+
+    pwm.free(pin)
+
+    return
+
+    for dc in range(101):
+        pin.dutycycle = dc
+        time.sleep(0.1)
+
+    for dc in range(100, 0, -10):
+        pin.dutycycle = dc
+        time.sleep(1)
+
 
